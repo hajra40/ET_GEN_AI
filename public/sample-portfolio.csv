@@ -1,0 +1,6 @@
+fundname,category,investedamount,currentvalue,expenseratio,benchmarkreturn,annualizedreturn,styletags
+Parag Parikh Flexi Cap Fund,Equity,500000,640000,0.78,13.1,14.8,flexi-cap|core
+Axis ELSS Tax Saver Fund,Equity,300000,330000,1.45,12.8,12.4,elss|large-cap
+Mirae Asset Large Cap Fund,Equity,280000,310000,1.56,12.5,11.9,large-cap
+Motilal Oswal Nasdaq 100 FoF,International,180000,220000,0.55,14.2,15.1,international|growth
+HDFC Balanced Advantage Fund,Hybrid,220000,255000,1.12,10.8,11.3,hybrid|risk-managed
