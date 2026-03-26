@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis } from "recharts";
 import { PageHeader } from "@/components/layout/page-header";
 import { RecommendationList } from "@/components/dashboard/recommendation-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import type { MoneyHealthScoreResult } from "@/lib/types";
 import { getStatusTone } from "@/lib/utils";
 
@@ -13,6 +15,13 @@ export function MoneyHealthPanel({
 }: {
   result: MoneyHealthScoreResult;
 }) {
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
+
+  useEffect(() => {
+    const context = `Overall Score: ${result.overallScore}/100. Dimensions: ${result.dimensions.map((d) => `${d.label}: ${d.score}/100`).join(", ")}. Narrative: ${result.narrative}`;
+    generateAISummary("Analyze this person's money health score and provide personalized advice on how to improve their financial wellness.", context).then(setAiSummary);
+  }, [result]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -64,6 +73,19 @@ export function MoneyHealthPanel({
           </CardContent>
         </Card>
       </div>
+
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>AI Mentor Summary</CardTitle>
+            <CardDescription>Personalized insights powered by AI.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
+        </CardContent>
+      </Card>
 
       <RecommendationList items={result.recommendations} />
     </div>

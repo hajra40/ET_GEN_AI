@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BrainCircuit, CircleDollarSign, Flame, HeartPulse, LayoutDashboard, PiggyBank, Users } from "lucide-react";
+import { BrainCircuit, CircleDollarSign, Flame, HeartPulse, LayoutDashboard, PiggyBank, ShieldCheck, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/money-health", label: "Health", icon: HeartPulse },
   { href: "/fire-planner", label: "FIRE", icon: Flame },
+  { href: "/money-health", label: "Health", icon: HeartPulse },
+  { href: "/life-events", label: "Events", icon: ShieldCheck },
   { href: "/tax-wizard", label: "Tax", icon: CircleDollarSign },
   { href: "/couple-planner", label: "Couple", icon: Users },
   { href: "/portfolio-xray", label: "Portfolio", icon: PiggyBank },

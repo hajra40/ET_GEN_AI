@@ -72,9 +72,9 @@ export function AuthForm({
           action={handleSubmit}
           className="space-y-4"
         >
-          {mode === "signup" ? <Input name="name" placeholder="Full name" required /> : null}
-          <Input name="email" type="email" placeholder="Email address" required />
-          <Input name="password" type="password" placeholder="Password" required />
+          {mode === "signup" ? <Input name="name" label="Full name" placeholder="e.g. Aanya Sharma" required /> : null}
+          <Input name="email" type="email" label="Email address" placeholder="you@example.com" required />
+          <Input name="password" type="password" label="Password" placeholder="Enter your password" required />
 
           {error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
 

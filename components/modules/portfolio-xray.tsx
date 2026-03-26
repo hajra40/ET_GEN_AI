@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Tooltip } from "recharts";
 import { Plus, Upload } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { calculatePortfolioXRay } from "@/lib/calculators/portfolio";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import type { PortfolioFund } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function PortfolioXRay({
   initialFunds: PortfolioFund[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [funds, setFunds] = useState<PortfolioFund[]>(
     initialFunds.length
       ? initialFunds
@@ -41,6 +43,11 @@ export function PortfolioXRay({
   );
   const [message, setMessage] = useState("");
   const result = calculatePortfolioXRay(funds);
+
+  useEffect(() => {
+    const context = `Number of Funds: ${funds.length}, Total Invested: ${formatCurrency(funds.reduce((sum, f) => sum + f.investedAmount, 0))}, Current Value: ${formatCurrency(funds.reduce((sum, f) => sum + f.currentValue, 0))}, XIRR: ${result.xirrApproximation}%, Expense Drag: ${formatCurrency(result.expenseRatioDragEstimate)}, Portfolio Return: ${result.benchmarkComparison.portfolioReturn}%, Benchmark: ${result.benchmarkComparison.benchmarkReturn}%`;
+    generateAISummary("Analyze this mutual fund portfolio and provide personalized advice on rebalancing, reducing costs, and improving returns.", context).then(setAiSummary);
+  }, [funds, result]);
 
   async function importPortfolio(file: File) {
     const formData = new FormData();
@@ -106,7 +113,7 @@ export function PortfolioXRay({
               Add fund
             </Button>
           </div>
-          <input
+          <Input
             ref={fileRef}
             type="file"
             accept=".csv,.pdf"
@@ -123,12 +130,12 @@ export function PortfolioXRay({
           {message ? <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">{message}</p> : null}
           {funds.map((fund, index) => (
             <div key={`${fund.fundName}-${index}`} className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 md:grid-cols-6">
-              <Input value={fund.fundName} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fundName: event.target.value } : item))} />
-              <Input value={fund.category} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} />
-              <Input type="number" value={fund.investedAmount} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, investedAmount: Number(event.target.value) } : item))} />
-              <Input type="number" value={fund.currentValue} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, currentValue: Number(event.target.value) } : item))} />
-              <Input type="number" value={fund.expenseRatio} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, expenseRatio: Number(event.target.value) } : item))} />
-              <Input type="number" value={fund.annualizedReturn} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, annualizedReturn: Number(event.target.value) } : item))} />
+              <Input label="Fund name" value={fund.fundName} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fundName: event.target.value } : item))} placeholder="e.g. HDFC Mid-Cap Opportunities" />
+              <Input label="Category" value={fund.category} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} placeholder="e.g. Equity" />
+              <Input label="Invested amount" type="number" value={fund.investedAmount} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, investedAmount: Number(event.target.value) } : item))} placeholder="e.g. 100000" />
+              <Input label="Current value" type="number" value={fund.currentValue} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, currentValue: Number(event.target.value) } : item))} placeholder="e.g. 110000" />
+              <Input label="Expense ratio %" type="number" value={fund.expenseRatio} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, expenseRatio: Number(event.target.value) } : item))} placeholder="e.g. 1.5" />
+              <Input label="Annualized return %" type="number" value={fund.annualizedReturn} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, annualizedReturn: Number(event.target.value) } : item))} placeholder="e.g. 12" />
             </div>
           ))}
         </CardContent>
@@ -189,6 +196,19 @@ export function PortfolioXRay({
           </Card>
         </div>
       </div>
+
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>AI Mentor Summary</CardTitle>
+            <CardDescription>Personalized portfolio insights powered by AI.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
