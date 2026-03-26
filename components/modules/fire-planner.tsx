@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateFirePlan } from "@/lib/calculators/fire";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import { totalInvestments } from "@/lib/calculators/shared";
 import type { UserProfile } from "@/lib/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
@@ -16,6 +17,7 @@ export function FirePlanner({
 }: {
   profile: UserProfile;
 }) {
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [form, setForm] = useState({
     age: profile.age,
     monthlyIncome: profile.monthlyIncome,
@@ -32,6 +34,11 @@ export function FirePlanner({
     lifeGoals: profile.financialGoals,
     riskAppetite: profile.riskAppetite
   });
+
+  useEffect(() => {
+    const context = `Age: ${form.age}, Monthly Income: ${form.monthlyIncome}, Monthly Expenses: ${form.monthlyExpenses}, Current Savings: ${form.savings}, Investments: ${form.investments}, Retirement Target Age: ${form.retirementTargetAge}, On Track: ${result.onTrack}, Target Corpus: ${result.targetRetirementCorpus}, Projected Corpus: ${result.projectedCorpus}, Monthly SIP Required: ${result.monthlySipRequired}, Annual Savings Rate: ${result.annualSavingsRate}%`;
+    generateAISummary("Analyze this person's FIRE plan and provide personalized advice on achieving financial independence and early retirement.", context).then(setAiSummary);
+  }, [form, result]);
 
   return (
     <div className="space-y-6">
@@ -52,21 +59,23 @@ export function FirePlanner({
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             {[
-              ["age", "Current age"],
-              ["monthlyIncome", "Monthly income"],
-              ["monthlyExpenses", "Monthly expenses + EMI"],
-              ["savings", "Current savings"],
-              ["investments", "Current investments"],
-              ["retirementTargetAge", "Retirement age"],
-              ["expectedInflation", "Inflation %"],
-              ["expectedReturnRate", "Expected return %"]
-            ].map(([key, label]) => (
+              ["age", "Current age", "Your current age in years"],
+              ["monthlyIncome", "Monthly income", "Take-home salary after deductions"],
+              ["monthlyExpenses", "Monthly expenses + EMI", "Total monthly outflow including loan EMI"],
+              ["savings", "Current savings", "Bank balance and liquid savings"],
+              ["investments", "Current investments", "Total current investment value"],
+              ["retirementTargetAge", "Retirement age", "Age at which you want to retire"],
+              ["expectedInflation", "Inflation %", "Expected annual inflation rate"],
+              ["expectedReturnRate", "Expected return %", "Expected annual investment return"]
+            ].map(([key, label, helperText]) => (
               <Input
                 key={key}
+                label={label}
+                helperText={helperText}
                 type="number"
                 value={form[key as keyof typeof form]}
                 onChange={(event) => setForm((current) => ({ ...current, [key]: Number(event.target.value) }))}
-                placeholder={label}
+                placeholder="e.g. 10"
               />
             ))}
           </CardContent>
@@ -109,6 +118,19 @@ export function FirePlanner({
               <Line dataKey="inflationAdjustedExpense" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>AI Mentor Summary</CardTitle>
+            <CardDescription>Personalized retirement planning insights powered by AI.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
         </CardContent>
       </Card>
 

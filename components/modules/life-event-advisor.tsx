@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { buildLifeEventPlan, getLifeEventQuestions } from "@/lib/calculators/life-events";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import type { LifeEventType, UserProfile } from "@/lib/types";
 import { demoLifeEventOptions } from "@/lib/data/demo-meta";
 
@@ -14,6 +15,7 @@ export function LifeEventAdvisor({
 }: {
   profile: UserProfile;
 }) {
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [eventType, setEventType] = useState<LifeEventType>("annual_bonus");
   const [answers, setAnswers] = useState<Record<string, string | number>>({
     bonusAmount: 500000,
@@ -23,6 +25,11 @@ export function LifeEventAdvisor({
 
   const questions = getLifeEventQuestions(eventType);
   const plan = buildLifeEventPlan(profile, { eventType, answers });
+
+  useEffect(() => {
+    const context = `Life Event: ${eventType}, Answers: ${JSON.stringify(answers)}, Emergency Fund Change: ${plan.emergencyFundChange}, Allocation Update: ${plan.allocationUpdate}, Insurance & Tax: ${plan.insuranceAndTaxNote}`;
+    generateAISummary("Analyze this life event scenario and provide personalized financial advice for handling this situation.", context).then(setAiSummary);
+  }, [eventType, answers, plan]);
 
   return (
     <div className="space-y-6">
@@ -42,6 +49,7 @@ export function LifeEventAdvisor({
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <Select
+            label="Life event type"
             value={eventType}
             onChange={(event) => {
               const nextType = event.target.value as LifeEventType;
@@ -67,6 +75,7 @@ export function LifeEventAdvisor({
           {questions.map((question) => (
             <Input
               key={question.id}
+              label={question.label}
               type={question.type === "number" ? "number" : "text"}
               value={String(answers[question.id] ?? "")}
               onChange={(event) =>
@@ -75,7 +84,7 @@ export function LifeEventAdvisor({
                   [question.id]: question.type === "number" ? Number(event.target.value) : event.target.value
                 }))
               }
-              placeholder={question.label}
+              placeholder="e.g. 500000"
             />
           ))}
         </CardContent>
@@ -105,27 +114,41 @@ export function LifeEventAdvisor({
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            { title: "Do now", items: plan.now },
-            { title: "In 3 months", items: plan.in3Months },
-            { title: "In 12 months", items: plan.in12Months }
-          ].map((section) => (
-            <Card key={section.title}>
-              <CardHeader>
-                <div>
-                  <CardTitle>{section.title}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {section.items.map((item) => (
-                  <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
-                    {item}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>AI Mentor Summary</CardTitle>
+                <CardDescription>Personalized life event advice powered by AI.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { title: "Do now", items: plan.now },
+              { title: "In 3 months", items: plan.in3Months },
+              { title: "In 12 months", items: plan.in12Months }
+            ].map((section) => (
+              <Card key={section.title}>
+                <CardHeader>
+                  <div>
+                    <CardTitle>{section.title}</CardTitle>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {section.items.map((item) => (
+                    <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
+                      {item}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     </div>

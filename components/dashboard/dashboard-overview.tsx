@@ -25,11 +25,12 @@ import { currentNetWorth, monthlySurplus } from "@/lib/calculators/shared";
 import { formatCompactCurrency, formatCurrency, formatPercentage } from "@/lib/utils";
 
 const quickActions = [
-  { href: "/money-health", label: "Review score" },
-  { href: "/fire-planner", label: "Run FIRE plan" },
-  { href: "/tax-wizard", label: "Compare taxes" },
-  { href: "/portfolio-xray", label: "Scan portfolio" },
-  { href: "/insights", label: "Ask AI mentor" }
+  { href: "/fire-planner", label: "FIRE Path Planner" },
+  { href: "/money-health", label: "Money Health Score" },
+  { href: "/life-events", label: "Life Event Advisor" },
+  { href: "/tax-wizard", label: "Tax Wizard" },
+  { href: "/couple-planner", label: "Couple's Money Planner" },
+  { href: "/portfolio-xray", label: "Mutual Fund Portfolio X-Ray" }
 ];
 
 export function DashboardOverview({

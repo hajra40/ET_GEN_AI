@@ -147,17 +147,17 @@ export function OnboardingWizard({
         <CardContent className="space-y-6">
           {step === 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <Input value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Full name" />
-              <Input value={form.city} onChange={(event) => updateField("city", event.target.value)} placeholder="City" />
-              <Input type="number" value={form.age} onChange={(event) => updateField("age", event.target.value)} placeholder="Age" />
-              <Select value={form.maritalStatus} onChange={(event) => updateField("maritalStatus", event.target.value)}>
+              <Input label="Full name" value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="e.g. Aanya Sharma" />
+              <Input label="City" value={form.city} onChange={(event) => updateField("city", event.target.value)} placeholder="e.g. Bengaluru" />
+              <Input label="Age" type="number" value={form.age} onChange={(event) => updateField("age", event.target.value)} placeholder="e.g. 28" />
+              <Select label="Marital status" value={form.maritalStatus} onChange={(event) => updateField("maritalStatus", event.target.value)}>
                 <option value="single">Single</option>
                 <option value="married">Married</option>
                 <option value="engaged">Engaged</option>
                 <option value="divorced">Divorced</option>
               </Select>
-              <Input type="number" value={form.dependents} onChange={(event) => updateField("dependents", event.target.value)} placeholder="Dependents" />
-              <Select value={form.riskAppetite} onChange={(event) => updateField("riskAppetite", event.target.value)}>
+              <Input label="Dependents" type="number" value={form.dependents} onChange={(event) => updateField("dependents", event.target.value)} placeholder="e.g. 2" helperText="Number of family members financially dependent on you." />
+              <Select label="Risk appetite" value={form.riskAppetite} onChange={(event) => updateField("riskAppetite", event.target.value)}>
                 <option value="conservative">Conservative</option>
                 <option value="balanced">Balanced</option>
                 <option value="growth">Growth</option>
@@ -168,43 +168,45 @@ export function OnboardingWizard({
 
           {step === 1 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <Input type="number" value={form.monthlyIncome} onChange={(event) => updateField("monthlyIncome", event.target.value)} placeholder="Monthly income" />
-              <Input type="number" value={form.monthlyExpenses} onChange={(event) => updateField("monthlyExpenses", event.target.value)} placeholder="Monthly expenses" />
-              <Input type="number" value={form.loanEmi} onChange={(event) => updateField("loanEmi", event.target.value)} placeholder="Loan EMI" />
-              <Input type="number" value={form.currentSavings} onChange={(event) => updateField("currentSavings", event.target.value)} placeholder="Current savings" />
-              <Input type="number" value={form.emergencyFund} onChange={(event) => updateField("emergencyFund", event.target.value)} placeholder="Emergency fund" />
-              <Input type="number" value={form.retirementTargetAge} onChange={(event) => updateField("retirementTargetAge", event.target.value)} placeholder="Retirement target age" />
+              <Input label="Monthly income" type="number" value={form.monthlyIncome} onChange={(event) => updateField("monthlyIncome", event.target.value)} placeholder="e.g. 120000" helperText="Take-home salary after deductions." />
+              <Input label="Monthly expenses" type="number" value={form.monthlyExpenses} onChange={(event) => updateField("monthlyExpenses", event.target.value)} placeholder="e.g. 60000" helperText="Rent, food, utilities, transport, subscriptions." />
+              <Input label="Loan EMI" type="number" value={form.loanEmi} onChange={(event) => updateField("loanEmi", event.target.value)} placeholder="e.g. 15000" helperText="Total monthly loan repayments." />
+              <Input label="Current savings" type="number" value={form.currentSavings} onChange={(event) => updateField("currentSavings", event.target.value)} placeholder="e.g. 500000" helperText="Bank balance and liquid savings." />
+              <Input label="Emergency fund" type="number" value={form.emergencyFund} onChange={(event) => updateField("emergencyFund", event.target.value)} placeholder="e.g. 200000" helperText="Funds set aside for emergencies." />
+              <Input label="Retirement target age" type="number" value={form.retirementTargetAge} onChange={(event) => updateField("retirementTargetAge", event.target.value)} placeholder="e.g. 55" />
             </div>
           ) : null}
 
           {step === 2 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <Input type="number" value={form.lifeCover} onChange={(event) => updateField("lifeCover", event.target.value)} placeholder="Life cover" />
-              <Input type="number" value={form.healthCover} onChange={(event) => updateField("healthCover", event.target.value)} placeholder="Health cover" />
-              <Input type="number" value={form.disabilityCover} onChange={(event) => updateField("disabilityCover", event.target.value)} placeholder="Disability cover" />
-              <Input type="number" value={form.personalAccidentCover} onChange={(event) => updateField("personalAccidentCover", event.target.value)} placeholder="Personal accident cover" />
+              <Input label="Life cover" type="number" value={form.lifeCover} onChange={(event) => updateField("lifeCover", event.target.value)} placeholder="e.g. 10000000" helperText="Total term life insurance cover." />
+              <Input label="Health cover" type="number" value={form.healthCover} onChange={(event) => updateField("healthCover", event.target.value)} placeholder="e.g. 500000" helperText="Total health insurance sum insured." />
+              <Input label="Disability cover" type="number" value={form.disabilityCover} onChange={(event) => updateField("disabilityCover", event.target.value)} placeholder="e.g. 0" helperText="Disability insurance cover amount." />
+              <Input label="Personal accident cover" type="number" value={form.personalAccidentCover} onChange={(event) => updateField("personalAccidentCover", event.target.value)} placeholder="e.g. 500000" helperText="Personal accident insurance cover." />
             </div>
           ) : null}
 
           {step === 3 ? (
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                ["equity", "Equity"],
-                ["debt", "Debt"],
-                ["gold", "Gold"],
-                ["cash", "Cash"],
-                ["epf", "EPF"],
-                ["ppf", "PPF"],
-                ["nps", "NPS"],
-                ["international", "International"],
-                ["alternatives", "Alternatives"]
-              ].map(([key, label]) => (
+                ["equity", "Equity", "Mutual funds, stocks"],
+                ["debt", "Debt", "FDs, bonds, debt funds"],
+                ["gold", "Gold", "Gold ETFs, sovereign gold bonds"],
+                ["cash", "Cash", "Savings account balance"],
+                ["epf", "EPF", "Employee Provident Fund"],
+                ["ppf", "PPF", "Public Provident Fund"],
+                ["nps", "NPS", "National Pension System"],
+                ["international", "International", "International equity funds"],
+                ["alternatives", "Alternatives", "REITs, InvITs, crypto"]
+              ].map(([key, label, helperText]) => (
                 <Input
                   key={key}
+                  label={label}
+                  helperText={helperText}
                   type="number"
                   value={form[key as keyof typeof form] as number}
                   onChange={(event) => updateField(key, event.target.value)}
-                  placeholder={label}
+                  placeholder="e.g. 100000"
                 />
               ))}
             </div>
@@ -213,21 +215,21 @@ export function OnboardingWizard({
           {step === 4 ? (
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <Select value={form.taxRegimePreference} onChange={(event) => updateField("taxRegimePreference", event.target.value)}>
+                <Select label="Tax regime preference" value={form.taxRegimePreference} onChange={(event) => updateField("taxRegimePreference", event.target.value)} helperText="We will compare both and suggest the best.">
                   <option value="unsure">Unsure</option>
                   <option value="old">Old tax regime</option>
                   <option value="new">New tax regime</option>
                 </Select>
-                <Textarea value={goals.map((goal) => goal.title).join(", ")} readOnly />
+                <Textarea label="Goals summary" value={goals.map((goal) => goal.title).join(", ")} readOnly />
               </div>
 
               <div className="space-y-3">
                 {goals.map((goal) => (
                   <div key={goal.id} className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 md:grid-cols-[2fr,1fr,1fr,1fr,auto]">
-                    <Input value={goal.title} onChange={(event) => updateGoal(goal.id, "title", event.target.value)} placeholder="Goal name" />
-                    <Input type="number" value={goal.targetAmount} onChange={(event) => updateGoal(goal.id, "targetAmount", Number(event.target.value))} placeholder="Target amount" />
-                    <Input type="number" value={goal.targetYear} onChange={(event) => updateGoal(goal.id, "targetYear", Number(event.target.value))} placeholder="Year" />
-                    <Select value={goal.priority} onChange={(event) => updateGoal(goal.id, "priority", event.target.value)}>
+                    <Input label="Goal name" value={goal.title} onChange={(event) => updateGoal(goal.id, "title", event.target.value)} placeholder="e.g. Home purchase" />
+                    <Input label="Target amount" type="number" value={goal.targetAmount} onChange={(event) => updateGoal(goal.id, "targetAmount", Number(event.target.value))} placeholder="e.g. 2500000" />
+                    <Input label="Target year" type="number" value={goal.targetYear} onChange={(event) => updateGoal(goal.id, "targetYear", Number(event.target.value))} placeholder="e.g. 2028" />
+                    <Select label="Priority" value={goal.priority} onChange={(event) => updateGoal(goal.id, "priority", event.target.value)}>
                       <option value="high">High</option>
                       <option value="medium">Medium</option>
                       <option value="low">Low</option>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { calculateCouplePlan } from "@/lib/calculators/couple";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import type { UserProfile } from "@/lib/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ export function CouplePlanner({
   currentProfile: UserProfile;
   profiles: UserProfile[];
 }) {
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [partnerAEmail, setPartnerAEmail] = useState(currentProfile.email);
   const [partnerBEmail, setPartnerBEmail] = useState(
     profiles.find((profile) => profile.email !== currentProfile.email && profile.maritalStatus === "married")?.email ?? profiles[0].email
@@ -30,6 +32,11 @@ export function CouplePlanner({
     sharedMonthlyExpenses,
     jointGoals: [...partnerA.financialGoals.slice(0, 1), ...partnerB.financialGoals.slice(0, 1)]
   });
+
+  useEffect(() => {
+    const context = `Partner A: ${partnerA.name} (Income: ${partnerA.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerA.currentSavings)}), Partner B: ${partnerB.name} (Income: ${partnerB.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerB.currentSavings)}), Combined Income: ${result.combinedIncome}, Combined Expenses: ${result.combinedExpenses}, Joint Emergency Target: ${result.jointEmergencyFundTarget}, Partner A SIP: ${result.optimizedSipSplit.partnerA}, Partner B SIP: ${result.optimizedSipSplit.partnerB}`;
+    generateAISummary("Analyze this couple's joint financial plan and provide personalized advice on optimizing their combined finances.", context).then(setAiSummary);
+  }, [partnerA, partnerB, result]);
 
   return (
     <div className="space-y-6">
@@ -48,25 +55,27 @@ export function CouplePlanner({
           </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
-          <Select value={partnerAEmail} onChange={(event) => setPartnerAEmail(event.target.value)}>
+          <Select label="Partner A" value={partnerAEmail} onChange={(event) => setPartnerAEmail(event.target.value)}>
             {profiles.map((profile) => (
               <option key={profile.email} value={profile.email}>
-                Partner A: {profile.name}
+                {profile.name}
               </option>
             ))}
           </Select>
-          <Select value={partnerBEmail} onChange={(event) => setPartnerBEmail(event.target.value)}>
+          <Select label="Partner B" value={partnerBEmail} onChange={(event) => setPartnerBEmail(event.target.value)}>
             {profiles.map((profile) => (
               <option key={profile.email} value={profile.email}>
-                Partner B: {profile.name}
+                {profile.name}
               </option>
             ))}
           </Select>
           <Input
+            label="Shared monthly expenses"
+            helperText="Rent, groceries, utilities, and other shared costs."
             type="number"
             value={sharedMonthlyExpenses}
             onChange={(event) => setSharedMonthlyExpenses(Number(event.target.value))}
-            placeholder="Shared monthly expenses"
+            placeholder="e.g. 35000"
           />
         </CardContent>
       </Card>
@@ -113,19 +122,31 @@ export function CouplePlanner({
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Insurance & Tax Suggestions</CardTitle>
-              <CardDescription>High-level rules for shared planning efficiency.</CardDescription>
+              <CardTitle>AI Mentor Summary</CardTitle>
+        <CardDescription>Personalized couple financial planning insights powered by AI.</CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {[...result.highLevelSuggestions, ...result.insuranceSplitRecommendations].map((item) => (
-              <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
-                {item}
-              </div>
-            ))}
+          <CardContent>
+            <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Insurance & Tax Suggestions</CardTitle>
+            <CardDescription>High-level rules for shared planning efficiency.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[...result.highLevelSuggestions, ...result.insuranceSplitRecommendations].map((item) => (
+            <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
+              {item}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }

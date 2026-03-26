@@ -19,12 +19,12 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/onboarding", label: "Onboarding", icon: House },
-  { href: "/money-health", label: "Money Health", icon: HeartPulse },
-  { href: "/fire-planner", label: "FIRE Planner", icon: Flame },
-  { href: "/life-events", label: "Life Events", icon: ShieldCheck },
+  { href: "/fire-planner", label: "FIRE Path Planner", icon: Flame },
+  { href: "/money-health", label: "Money Health Score", icon: HeartPulse },
+  { href: "/life-events", label: "Life Event Advisor", icon: ShieldCheck },
   { href: "/tax-wizard", label: "Tax Wizard", icon: CircleDollarSign },
-  { href: "/couple-planner", label: "Couple Planner", icon: Users },
-  { href: "/portfolio-xray", label: "Portfolio X-Ray", icon: PiggyBank },
+  { href: "/couple-planner", label: "Couple's Money Planner", icon: Users },
+  { href: "/portfolio-xray", label: "Mutual Fund Portfolio X-Ray", icon: PiggyBank },
   { href: "/insights", label: "AI Insights", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings }
 ];

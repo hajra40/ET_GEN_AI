@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { compareTaxRegimes } from "@/lib/calculators/tax";
+import { generateAISummary } from "@/lib/ai/groq-service";
 import type { TaxWizardInput, UserProfile } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ export function TaxWizard({
   profile: UserProfile;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [form, setForm] = useState<TaxWizardInput>({
     annualGrossSalary: profile.salaryBreakdown.annualGrossSalary,
     basicSalary: profile.salaryBreakdown.basicSalary,
@@ -37,6 +39,11 @@ export function TaxWizard({
   });
   const [uploadMessage, setUploadMessage] = useState("");
   const result = compareTaxRegimes(form);
+
+  useEffect(() => {
+    const context = `Annual Gross Salary: ${form.annualGrossSalary}, Basic Salary: ${form.basicSalary}, HRA Received: ${form.hraReceived}, Annual Rent Paid: ${form.annualRentPaid}, City Type: ${form.cityType}, Bonus: ${form.bonus}, Section 80C: ${form.section80c}, Section 80D: ${form.section80d}, NPS Employee: ${form.npsEmployee}, Home Loan Interest: ${form.homeLoanInterest}, Old Regime Tax: ${result.oldRegimeTax}, New Regime Tax: ${result.newRegimeTax}, Best Regime: ${result.bestRegime}, Savings: ${result.savingsDifference}`;
+    generateAISummary("Analyze this person's tax situation and provide personalized tax-saving advice for Indian salaried employees.", context).then(setAiSummary);
+  }, [form, result]);
 
   async function uploadForm16(file: File) {
     const formData = new FormData();
@@ -75,7 +82,7 @@ export function TaxWizard({
               <Upload className="h-4 w-4" />
               Upload Form 16
             </Button>
-            <input
+            <Input
               ref={fileRef}
               type="file"
               accept=".pdf,.csv"
@@ -90,28 +97,32 @@ export function TaxWizard({
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             {[
-              ["annualGrossSalary", "Annual gross salary"],
-              ["basicSalary", "Basic salary"],
-              ["hraReceived", "HRA received"],
-              ["annualRentPaid", "Annual rent paid"],
-              ["bonus", "Bonus"],
-              ["professionalTax", "Professional tax"],
-              ["section80c", "Section 80C"],
-              ["section80d", "Section 80D"],
-              ["npsEmployee", "NPS employee"],
-              ["npsEmployer", "NPS employer"],
-              ["homeLoanInterest", "Home loan interest"],
-              ["otherDeductions", "Other deductions"]
-            ].map(([key, label]) => (
+              ["annualGrossSalary", "Annual gross salary", "Total CTC before deductions"],
+              ["basicSalary", "Basic salary", "Basic component of your salary"],
+              ["hraReceived", "HRA received", "House Rent Allowance from employer"],
+              ["annualRentPaid", "Annual rent paid", "Total rent paid in the year"],
+              ["bonus", "Bonus", "Performance bonus, joining bonus, etc."],
+              ["professionalTax", "Professional tax", "Professional tax deducted"],
+              ["section80c", "Section 80C", "PPF, ELSS, life insurance premiums"],
+              ["section80d", "Section 80D", "Health insurance premiums"],
+              ["npsEmployee", "NPS employee", "Your NPS contribution under 80CCD(1B)"],
+              ["npsEmployer", "NPS employer", "Employer's NPS contribution"],
+              ["homeLoanInterest", "Home loan interest", "Interest paid on home loan"],
+              ["otherDeductions", "Other deductions", "Other eligible deductions"]
+            ].map(([key, label, helperText]) => (
               <Input
                 key={key}
+                label={label}
+                helperText={helperText}
                 type="number"
                 value={form[key as keyof TaxWizardInput] as number}
                 onChange={(event) => setForm((current) => ({ ...current, [key]: Number(event.target.value) }))}
-                placeholder={label}
+                placeholder="e.g. 50000"
               />
             ))}
             <Select
+              label="City type"
+              helperText="Metro cities get higher HRA exemption."
               value={form.cityType}
               onChange={(event) => setForm((current) => ({ ...current, cityType: event.target.value as TaxWizardInput["cityType"] }))}
             >
@@ -163,6 +174,19 @@ export function TaxWizard({
           </Card>
         </div>
       </div>
+
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>AI Mentor Summary</CardTitle>
+            <CardDescription>Personalized tax-saving insights powered by AI.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-6 text-muted-foreground">{aiSummary}</p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
