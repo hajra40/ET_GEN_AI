@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { calculateCouplePlan } from "@/lib/calculators/couple";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import type { UserProfile } from "@/lib/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
 
@@ -32,11 +32,22 @@ export function CouplePlanner({
     sharedMonthlyExpenses,
     jointGoals: [...partnerA.financialGoals.slice(0, 1), ...partnerB.financialGoals.slice(0, 1)]
   });
+  const aiPrompt = "Analyze this couple's joint financial plan and provide personalized advice on optimizing their combined finances.";
+  const aiContext = `Partner A: ${partnerA.name} (Income: ${partnerA.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerA.currentSavings)}), Partner B: ${partnerB.name} (Income: ${partnerB.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerB.currentSavings)}), Combined Income: ${result.combinedIncome}, Combined Expenses: ${result.combinedExpenses}, Joint Emergency Target: ${result.jointEmergencyFundTarget}, Partner A SIP: ${result.optimizedSipSplit.partnerA}, Partner B SIP: ${result.optimizedSipSplit.partnerB}`;
 
   useEffect(() => {
-    const context = `Partner A: ${partnerA.name} (Income: ${partnerA.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerA.currentSavings)}), Partner B: ${partnerB.name} (Income: ${partnerB.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerB.currentSavings)}), Combined Income: ${result.combinedIncome}, Combined Expenses: ${result.combinedExpenses}, Joint Emergency Target: ${result.jointEmergencyFundTarget}, Partner A SIP: ${result.optimizedSipSplit.partnerA}, Partner B SIP: ${result.optimizedSipSplit.partnerB}`;
-    generateAISummary("Analyze this couple's joint financial plan and provide personalized advice on optimizing their combined finances.", context).then(setAiSummary);
-  }, [partnerA, partnerB, result]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
 import { generateInsightAnswer } from "@/lib/ai/insights";
+import { generateGeminiInsight } from "@/lib/ai/gemini-service";
 import { buildInsightContext } from "@/lib/data/compose";
 import { addChatMessage, getChatHistory, getProfileByEmail } from "@/lib/data/store";
 
@@ -21,7 +22,9 @@ export async function POST(request: Request) {
   }
 
   const context = buildInsightContext(profile);
-  const answer = await generateInsightAnswer(body.question, context);
+  const answer =
+    (await generateGeminiInsight(body.question, context)) ??
+    (await generateInsightAnswer(body.question, context));
   const userMessage = {
     id: `user-${Date.now()}`,
     role: "user" as const,

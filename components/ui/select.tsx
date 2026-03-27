@@ -28,7 +28,7 @@ export function Select({
           {label}
         </label>
       ) : null}
-      <Select
+      <select
         id={selectId}
         aria-describedby={errorId ?? helperId}
         aria-invalid={!!error}
@@ -40,7 +40,7 @@ export function Select({
         {...props}
       >
         {children}
-      </Select>
+      </select>
       {helperText && !error ? (
         <p id={helperId} className="text-xs text-muted-foreground">
           {helperText}

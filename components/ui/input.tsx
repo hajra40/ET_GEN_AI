@@ -21,7 +21,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         ) : null}
-        <Input
+        <input
           type={type}
           id={inputId}
           ref={ref}

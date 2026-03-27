@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { RecommendationList } from "@/components/dashboard/recommendation-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import type { MoneyHealthScoreResult } from "@/lib/types";
 import { getStatusTone } from "@/lib/utils";
 
@@ -16,11 +16,22 @@ export function MoneyHealthPanel({
   result: MoneyHealthScoreResult;
 }) {
   const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
+  const aiPrompt = "Analyze this person's money health score and provide personalized advice on how to improve their financial wellness.";
+  const aiContext = `Overall Score: ${result.overallScore}/100. Dimensions: ${result.dimensions.map((dimension) => `${dimension.label}: ${dimension.score}/100`).join(", ")}. Narrative: ${result.narrative}`;
 
   useEffect(() => {
-    const context = `Overall Score: ${result.overallScore}/100. Dimensions: ${result.dimensions.map((d) => `${d.label}: ${d.score}/100`).join(", ")}. Narrative: ${result.narrative}`;
-    generateAISummary("Analyze this person's money health score and provide personalized advice on how to improve their financial wellness.", context).then(setAiSummary);
-  }, [result]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   return (
     <div className="space-y-6">
