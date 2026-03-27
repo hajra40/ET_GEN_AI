@@ -14,7 +14,7 @@ export async function requireSession() {
 
 export async function requireProfile() {
   const session = await requireSession();
-  const profile = getProfileByEmail(session.email);
+  const profile = await getProfileByEmail(session.email);
 
   if (!profile) {
     // On serverless platforms a stale cookie can outlive the in-memory demo store.

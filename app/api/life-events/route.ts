@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const profile = getProfileByEmail(session.email);
+  const profile = await getProfileByEmail(session.email);
   if (!profile) {
     return NextResponse.json({ error: "Profile not found." }, { status: 404 });
   }

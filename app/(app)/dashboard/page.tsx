@@ -4,7 +4,7 @@ import { buildInsightContext } from "@/lib/data/compose";
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const context = buildInsightContext(profile);
+  const context = await buildInsightContext(profile);
 
   return <DashboardOverview profile={profile} context={context} />;
 }

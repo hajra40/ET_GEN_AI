@@ -31,19 +31,33 @@ export async function POST(request: Request) {
     if (file.name.endsWith(".csv")) {
       const text = await file.text();
       const funds = parsePortfolioCsv(text);
-      setPortfolioByEmail(session.email, funds);
-      return NextResponse.json({
-        funds,
-        message: "CSV parsed successfully and portfolio holdings were reconstructed."
-      });
+      try {
+        const savedFunds = await setPortfolioByEmail(session.email, funds);
+        return NextResponse.json({
+          funds: savedFunds,
+          message: "CSV parsed successfully and portfolio holdings were reconstructed."
+        });
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Unable to save portfolio." },
+          { status: 500 }
+        );
+      }
     }
 
     const funds = demoPortfolios["kabir@demo.in"] ?? [];
-    setPortfolioByEmail(session.email, funds);
-    return NextResponse.json({
-      funds,
-      message: "PDF/CAMS/KFintech parser is running in demo mode, so a realistic sample portfolio was loaded."
-    });
+    try {
+      const savedFunds = await setPortfolioByEmail(session.email, funds);
+      return NextResponse.json({
+        funds: savedFunds,
+        message: "PDF/CAMS/KFintech parser is running in demo mode, so a realistic sample portfolio was loaded."
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Unable to save portfolio." },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ error: "Unsupported upload kind." }, { status: 400 });

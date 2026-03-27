@@ -4,7 +4,7 @@ import { getPortfolioByEmail } from "@/lib/data/store";
 
 export default async function PortfolioXRayPage() {
   const profile = await requireProfile();
-  const holdings = getPortfolioByEmail(profile.email);
+  const holdings = await getPortfolioByEmail(profile.email);
 
   return <PortfolioXRay initialFunds={holdings} />;
 }

@@ -9,7 +9,7 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  const profile = getProfileByEmail(session.email);
+  const profile = await getProfileByEmail(session.email);
   if (!profile) {
     try {
       clearSession();

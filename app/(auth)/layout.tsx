@@ -10,7 +10,7 @@ export default async function AuthLayout({
   const session = await getServerSession();
 
   if (session) {
-    const profile = getProfileByEmail(session.email);
+    const profile = await getProfileByEmail(session.email);
 
     if (profile) {
       redirect("/dashboard");

@@ -9,7 +9,7 @@ import { calculatePortfolioXRay } from "@/lib/calculators/portfolio";
 import { getPortfolioByEmail } from "@/lib/data/store";
 import { getMetroCityFlag, totalInvestments } from "@/lib/calculators/shared";
 
-export function buildInsightContext(profile: UserProfile): InsightPromptContext {
+export async function buildInsightContext(profile: UserProfile): Promise<InsightPromptContext> {
   const moneyHealth = calculateMoneyHealthScore(profile);
   const firePlan = calculateFirePlan({
     age: profile.age,
@@ -39,7 +39,7 @@ export function buildInsightContext(profile: UserProfile): InsightPromptContext 
     homeLoanInterest: profile.salaryBreakdown.homeLoanInterest,
     otherDeductions: profile.salaryBreakdown.otherDeductions
   });
-  const portfolioXRay = calculatePortfolioXRay(getPortfolioByEmail(profile.email));
+  const portfolioXRay = calculatePortfolioXRay(await getPortfolioByEmail(profile.email));
 
   return {
     profile,

@@ -4,7 +4,7 @@ import { getAllProfiles } from "@/lib/data/store";
 
 export default async function CouplePlannerPage() {
   const profile = await requireProfile();
-  const profiles = getAllProfiles();
+  const profiles = await getAllProfiles();
 
-  return <CouplePlanner currentProfile={profile} profiles={profiles} />;
+  return <CouplePlanner currentProfile={profile} profiles={profiles.length ? profiles : [profile]} />;
 }

@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const session = createUser(parsed.data.name, parsed.data.email, parsed.data.password);
+    const session = await createUser(parsed.data.name, parsed.data.email, parsed.data.password);
     setSession(session);
     return NextResponse.json({ success: true, user: session });
   } catch (error) {
