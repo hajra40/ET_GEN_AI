@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateFirePlan } from "@/lib/calculators/fire";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import { totalInvestments } from "@/lib/calculators/shared";
 import type { UserProfile } from "@/lib/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
@@ -34,11 +34,22 @@ export function FirePlanner({
     lifeGoals: profile.financialGoals,
     riskAppetite: profile.riskAppetite
   });
+  const aiPrompt = "Analyze this person's FIRE plan and provide personalized advice on achieving financial independence and early retirement.";
+  const aiContext = `Age: ${form.age}, Monthly Income: ${form.monthlyIncome}, Monthly Expenses: ${form.monthlyExpenses}, Current Savings: ${form.savings}, Investments: ${form.investments}, Retirement Target Age: ${form.retirementTargetAge}, On Track: ${result.onTrack}, Target Corpus: ${result.targetRetirementCorpus}, Projected Corpus: ${result.projectedCorpus}, Monthly SIP Required: ${result.monthlySipRequired}, Annual Savings Rate: ${result.annualSavingsRate}%`;
 
   useEffect(() => {
-    const context = `Age: ${form.age}, Monthly Income: ${form.monthlyIncome}, Monthly Expenses: ${form.monthlyExpenses}, Current Savings: ${form.savings}, Investments: ${form.investments}, Retirement Target Age: ${form.retirementTargetAge}, On Track: ${result.onTrack}, Target Corpus: ${result.targetRetirementCorpus}, Projected Corpus: ${result.projectedCorpus}, Monthly SIP Required: ${result.monthlySipRequired}, Annual Savings Rate: ${result.annualSavingsRate}%`;
-    generateAISummary("Analyze this person's FIRE plan and provide personalized advice on achieving financial independence and early retirement.", context).then(setAiSummary);
-  }, [form, result]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   return (
     <div className="space-y-6">

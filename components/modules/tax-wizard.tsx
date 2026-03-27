@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { compareTaxRegimes } from "@/lib/calculators/tax";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import type { TaxWizardInput, UserProfile } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -39,11 +39,22 @@ export function TaxWizard({
   });
   const [uploadMessage, setUploadMessage] = useState("");
   const result = compareTaxRegimes(form);
+  const aiPrompt = "Analyze this person's tax situation and provide personalized tax-saving advice for Indian salaried employees.";
+  const aiContext = `Annual Gross Salary: ${form.annualGrossSalary}, Basic Salary: ${form.basicSalary}, HRA Received: ${form.hraReceived}, Annual Rent Paid: ${form.annualRentPaid}, City Type: ${form.cityType}, Bonus: ${form.bonus}, Section 80C: ${form.section80c}, Section 80D: ${form.section80d}, NPS Employee: ${form.npsEmployee}, Home Loan Interest: ${form.homeLoanInterest}, Old Regime Tax: ${result.oldRegimeTax}, New Regime Tax: ${result.newRegimeTax}, Best Regime: ${result.bestRegime}, Savings: ${result.savingsDifference}`;
 
   useEffect(() => {
-    const context = `Annual Gross Salary: ${form.annualGrossSalary}, Basic Salary: ${form.basicSalary}, HRA Received: ${form.hraReceived}, Annual Rent Paid: ${form.annualRentPaid}, City Type: ${form.cityType}, Bonus: ${form.bonus}, Section 80C: ${form.section80c}, Section 80D: ${form.section80d}, NPS Employee: ${form.npsEmployee}, Home Loan Interest: ${form.homeLoanInterest}, Old Regime Tax: ${result.oldRegimeTax}, New Regime Tax: ${result.newRegimeTax}, Best Regime: ${result.bestRegime}, Savings: ${result.savingsDifference}`;
-    generateAISummary("Analyze this person's tax situation and provide personalized tax-saving advice for Indian salaried employees.", context).then(setAiSummary);
-  }, [form, result]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   async function uploadForm16(file: File) {
     const formData = new FormData();

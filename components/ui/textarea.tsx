@@ -21,7 +21,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             {label}
           </label>
         ) : null}
-        <Textarea
+        <textarea
           id={textareaId}
           ref={ref}
           aria-describedby={errorId ?? helperId}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { buildLifeEventPlan, getLifeEventQuestions } from "@/lib/calculators/life-events";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import type { LifeEventType, UserProfile } from "@/lib/types";
 import { demoLifeEventOptions } from "@/lib/data/demo-meta";
 
@@ -25,11 +25,22 @@ export function LifeEventAdvisor({
 
   const questions = getLifeEventQuestions(eventType);
   const plan = buildLifeEventPlan(profile, { eventType, answers });
+  const aiPrompt = "Analyze this life event scenario and provide personalized financial advice for handling this situation.";
+  const aiContext = `Life Event: ${eventType}, Answers: ${JSON.stringify(answers)}, Emergency Fund Change: ${plan.emergencyFundChange}, Allocation Update: ${plan.allocationUpdate}, Insurance & Tax: ${plan.insuranceAndTaxNote}`;
 
   useEffect(() => {
-    const context = `Life Event: ${eventType}, Answers: ${JSON.stringify(answers)}, Emergency Fund Change: ${plan.emergencyFundChange}, Allocation Update: ${plan.allocationUpdate}, Insurance & Tax: ${plan.insuranceAndTaxNote}`;
-    generateAISummary("Analyze this life event scenario and provide personalized financial advice for handling this situation.", context).then(setAiSummary);
-  }, [eventType, answers, plan]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/auth/session";
+import { clearSession, getServerSession } from "@/lib/auth/session";
+import { getProfileByEmail } from "@/lib/data/store";
 
 export default async function AuthLayout({
   children
@@ -9,7 +10,17 @@ export default async function AuthLayout({
   const session = await getServerSession();
 
   if (session) {
-    redirect("/dashboard");
+    const profile = getProfileByEmail(session.email);
+
+    if (profile) {
+      redirect("/dashboard");
+    }
+
+    try {
+      clearSession();
+    } catch {
+      // Ignore cookie mutation failures during render; we still avoid the redirect loop.
+    }
   }
 
   return (

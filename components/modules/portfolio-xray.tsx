@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { calculatePortfolioXRay } from "@/lib/calculators/portfolio";
-import { generateAISummary } from "@/lib/ai/groq-service";
+import { fetchAiSummary } from "@/lib/ai/client";
 import type { PortfolioFund } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -43,11 +43,22 @@ export function PortfolioXRay({
   );
   const [message, setMessage] = useState("");
   const result = calculatePortfolioXRay(funds);
+  const aiPrompt = "Analyze this mutual fund portfolio and provide personalized advice on rebalancing, reducing costs, and improving returns.";
+  const aiContext = `Number of Funds: ${funds.length}, Total Invested: ${formatCurrency(funds.reduce((sum, fund) => sum + fund.investedAmount, 0))}, Current Value: ${formatCurrency(funds.reduce((sum, fund) => sum + fund.currentValue, 0))}, XIRR: ${result.xirrApproximation}%, Expense Drag: ${formatCurrency(result.expenseRatioDragEstimate)}, Portfolio Return: ${result.benchmarkComparison.portfolioReturn}%, Benchmark: ${result.benchmarkComparison.benchmarkReturn}%`;
 
   useEffect(() => {
-    const context = `Number of Funds: ${funds.length}, Total Invested: ${formatCurrency(funds.reduce((sum, f) => sum + f.investedAmount, 0))}, Current Value: ${formatCurrency(funds.reduce((sum, f) => sum + f.currentValue, 0))}, XIRR: ${result.xirrApproximation}%, Expense Drag: ${formatCurrency(result.expenseRatioDragEstimate)}, Portfolio Return: ${result.benchmarkComparison.portfolioReturn}%, Benchmark: ${result.benchmarkComparison.benchmarkReturn}%`;
-    generateAISummary("Analyze this mutual fund portfolio and provide personalized advice on rebalancing, reducing costs, and improving returns.", context).then(setAiSummary);
-  }, [funds, result]);
+    let active = true;
+
+    void fetchAiSummary(aiPrompt, aiContext).then((summary) => {
+      if (active) {
+        setAiSummary(summary);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [aiPrompt, aiContext]);
 
   async function importPortfolio(file: File) {
     const formData = new FormData();
