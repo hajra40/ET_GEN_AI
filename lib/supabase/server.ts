@@ -2,8 +2,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let supabaseServerClient: SupabaseClient | null | undefined;
 
+function getSupabaseUrl() {
+  return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? null;
+}
+
+function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? null;
+}
+
 export function isSupabaseConfigured() {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(getSupabaseUrl() && getSupabaseServiceRoleKey());
 }
 
 export function getSupabaseServerClient() {
@@ -13,8 +21,8 @@ export function getSupabaseServerClient() {
 
   if (!supabaseServerClient) {
     supabaseServerClient = createClient(
-      process.env.SUPABASE_URL as string,
-      process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+      getSupabaseUrl() as string,
+      getSupabaseServiceRoleKey() as string,
       {
         auth: {
           autoRefreshToken: false,
