@@ -108,13 +108,15 @@ Create `.env.local` from `.env.example`.
 ```env
 NEXT_PUBLIC_APP_NAME=AI Money Mentor
 SESSION_COOKIE_NAME=ai-money-mentor-session
-OPENAI_API_KEY=
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash-lite
+ENABLE_GEMINI_SUMMARIES=true
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-The app runs without Supabase or an OpenAI key. Local demo mode works out of the box.
+The app runs without Supabase. Gemini-powered summaries require `GEMINI_API_KEY`, and you should restart the dev server after changing env values. Local demo mode still works out of the box.
 
 ## Local setup
 

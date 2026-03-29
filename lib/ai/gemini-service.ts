@@ -4,8 +4,7 @@ import type { InsightPromptContext } from "@/lib/types";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/ai/prompts";
 import { featureFlags } from "@/lib/config/feature-flags";
 
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 interface GeminiResponse {
   candidates?: {
@@ -15,79 +14,161 @@ interface GeminiResponse {
       }[];
     };
   }[];
+  promptFeedback?: unknown;
+}
+
+export class GeminiServiceError extends Error {
+  statusCode: number;
+  rawBody?: string;
+
+  constructor(message: string, statusCode = 500, rawBody?: string) {
+    super(message);
+    this.name = "GeminiServiceError";
+    this.statusCode = statusCode;
+    this.rawBody = rawBody;
+  }
+}
+
+function getGeminiApiKey() {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (!apiKey) {
+    throw new GeminiServiceError("Missing GEMINI_API_KEY. Add it to .env.local and restart the Next.js server.", 500);
+  }
+
+  return apiKey;
+}
+
+function getGeminiModel() {
+  const configuredModel = (process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL).trim();
+  const normalizedModel = configuredModel.replace(/^models\//, "");
+
+  if (!normalizedModel || !/^gemini-[a-z0-9.-]+$/i.test(normalizedModel)) {
+    throw new GeminiServiceError(`Invalid Gemini model name: "${configuredModel}".`, 500);
+  }
+
+  return normalizedModel;
+}
+
+function buildGeminiEndpoint(model: string) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
+
+function normalizePrompt(input: string, fieldName: string) {
+  const normalized = input.trim();
+
+  if (!normalized) {
+    throw new GeminiServiceError(`${fieldName} cannot be empty.`, 400);
+  }
+
+  return normalized;
+}
+
+function extractGeneratedText(response: GeminiResponse) {
+  const text = response.candidates
+    ?.flatMap((candidate) => candidate.content?.parts ?? [])
+    .map((part) => part.text?.trim() ?? "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  if (!text) {
+    throw new GeminiServiceError("Gemini returned an unexpected response shape with no generated text.", 500, JSON.stringify(response));
+  }
+
+  return text;
 }
 
 async function callGemini(prompt: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return null;
+  const apiKey = getGeminiApiKey();
+  const model = getGeminiModel();
+  const endpoint = buildGeminiEndpoint(model);
+  const normalizedPrompt = normalizePrompt(prompt, "Gemini prompt");
+
+  let response: Response;
+
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: normalizedPrompt
+              }
+            ]
+          }
+        ]
+      }),
+      cache: "no-store"
+    });
+  } catch (error) {
+    throw new GeminiServiceError(
+      `Unable to reach Gemini API: ${error instanceof Error ? error.message : "Unknown network error."}`,
+      500
+    );
   }
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: prompt
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 350
-      }
-    }),
-    cache: "no-store"
-  });
+  const rawBody = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.status}`);
+    console.error("Gemini API error response", {
+      status: response.status,
+      model,
+      body: rawBody
+    });
+
+    throw new GeminiServiceError(
+      `Gemini API error: ${response.status}. Raw response: ${rawBody || "<empty body>"}`,
+      response.status === 400 ? 400 : 500,
+      rawBody
+    );
   }
 
-  const data = (await response.json()) as GeminiResponse;
-  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
+  if (!rawBody.trim()) {
+    throw new GeminiServiceError("Gemini returned an empty response body.", 500);
+  }
 
-  return text || null;
+  let parsed: GeminiResponse;
+
+  try {
+    parsed = JSON.parse(rawBody) as GeminiResponse;
+  } catch {
+    throw new GeminiServiceError(`Gemini returned non-JSON content: ${rawBody}`, 500, rawBody);
+  }
+
+  return extractGeneratedText(parsed);
 }
 
 export async function generateAISummary(prompt: string, context: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || !featureFlags.enableGeminiSummaries) {
-    return "AI summary unavailable. Add GEMINI_API_KEY to enable Gemini-powered insights.";
+  if (!featureFlags.enableGeminiSummaries) {
+    throw new GeminiServiceError("Gemini summaries are disabled by feature flag.", 500);
   }
 
-  try {
-    const fullPrompt = `You are AI Money Mentor, a careful Indian personal finance mentor.
+  const normalizedPrompt = normalizePrompt(prompt, "Summary prompt");
+  const normalizedContext = normalizePrompt(context, "Summary context");
+  const fullPrompt = `You are AI Money Mentor, a careful Indian personal finance mentor.
 Give concise, practical advice in simple language.
 Do not promise guaranteed returns.
 Keep the answer under 150 words.
 Use rupee amounts where relevant.
 
 Task:
-${prompt}
+${normalizedPrompt}
 
 Context:
-${context}`;
+${normalizedContext}`;
 
-    return (await callGemini(fullPrompt)) ?? "AI summary temporarily unavailable. Please try again later.";
-  } catch (error) {
-    console.error("Gemini summary error:", error);
-    return "AI summary temporarily unavailable. Please try again later.";
-  }
+  return callGemini(fullPrompt);
 }
 
 export async function generateGeminiInsight(question: string, context: InsightPromptContext) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || !featureFlags.enableGeminiSummaries) {
+  if (!featureFlags.enableGeminiSummaries) {
     return null;
   }
 
