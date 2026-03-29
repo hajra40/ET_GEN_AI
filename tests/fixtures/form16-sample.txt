@@ -1,0 +1,12 @@
+FORM NO. 16
+Gross Salary 1,800,000
+Basic Salary 720,000
+House Rent Allowance 300,000
+Bonus 150,000
+Employer PF 86,400
+Professional Tax 2,400
+Section 80C 120,000
+Section 80D 18,000
+80CCD(1B) 25,000
+80CCD(2) 30,000
+Tax Deducted 210,000

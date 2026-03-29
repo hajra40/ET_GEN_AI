@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BrainCircuit, Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -19,7 +18,6 @@ export function AuthForm({
 }: {
   mode: "login" | "signup";
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,6 +35,7 @@ export function AuthForm({
 
     const response = await fetch(`/api/auth/${mode}`, {
       method: "POST",
+      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json"
       },
@@ -50,8 +49,9 @@ export function AuthForm({
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    // Force a fresh document request so the protected app boots with the new cookie
+    // instead of reusing an unauthenticated App Router cache entry.
+    window.location.replace("/dashboard");
   }
 
   return (

@@ -24,5 +24,7 @@ export const demoLifeEventOptions: { label: string; value: LifeEventType }[] = [
   { label: "New Baby", value: "new_baby" },
   { label: "Inheritance", value: "inheritance" },
   { label: "Job Loss", value: "job_loss" },
+  { label: "Job Change", value: "job_change" },
+  { label: "Emergency Medical Event", value: "emergency_medical_event" },
   { label: "Home Purchase", value: "home_purchase" }
 ];

@@ -2,10 +2,17 @@ import type {
   PortfolioFund,
   PortfolioXRayResult
 } from "@/lib/types";
+import { getAssumptionsForModule } from "@/lib/config/finance-assumptions";
+import { getBenchmarkMapping } from "@/lib/config/benchmarks";
+import { calculateFundOverlap } from "@/lib/calculators/holdings-overlap";
+import { calculateXirrFromTransactions } from "@/lib/calculators/xirr";
+import { parsePortfolioCsvText } from "@/lib/parsers/portfolio/parse-csv";
 import { round, sum } from "@/lib/utils";
 
 export function calculatePortfolioXRay(funds: PortfolioFund[]): PortfolioXRayResult {
+  const assumptionsUsed = getAssumptionsForModule("portfolio");
   const totalValue = sum(funds.map((fund) => fund.currentValue));
+  const totalInvested = sum(funds.map((fund) => fund.investedAmount));
   const allocationMap = new Map<string, number>();
 
   funds.forEach((fund) => {
@@ -16,42 +23,37 @@ export function calculatePortfolioXRay(funds: PortfolioFund[]): PortfolioXRayRes
     .map(([category, value]) => ({ category, value: round(value) }))
     .sort((left, right) => right.value - left.value);
 
-  const fundOverlap: PortfolioXRayResult["fundOverlap"] = [];
-  for (let leftIndex = 0; leftIndex < funds.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < funds.length; rightIndex += 1) {
-      const left = funds[leftIndex];
-      const right = funds[rightIndex];
-      const leftMap = new Map(left.topHoldings.map((holding) => [holding.name, holding.weight]));
-      const rightMap = new Map(right.topHoldings.map((holding) => [holding.name, holding.weight]));
-      let overlap = 0;
-
-      leftMap.forEach((weight, name) => {
-        const counterpart = rightMap.get(name);
-        if (counterpart) {
-          overlap += Math.min(weight, counterpart);
-        }
-      });
-
-      if (overlap > 0) {
-        fundOverlap.push({
-          pair: `${left.fundName} + ${right.fundName}`,
-          overlapPercent: round(overlap, 1)
-        });
-      }
-    }
-  }
-
+  const fundOverlap = calculateFundOverlap(funds);
   const weightedExpenseRatio = sum(
     funds.map((fund) => (fund.currentValue / Math.max(totalValue, 1)) * fund.expenseRatio)
   );
   const expenseRatioDragEstimate = round((weightedExpenseRatio / 100) * totalValue);
-  const portfolioReturn = round(
-    sum(funds.map((fund) => (fund.currentValue / Math.max(totalValue, 1)) * fund.annualizedReturn)),
+  const weightedPortfolioReturn = round(
+    sum(
+      funds.map((fund) => {
+        const simpleReturn =
+          fund.investedAmount > 0
+            ? ((fund.currentValue - fund.investedAmount) / fund.investedAmount) * 100
+            : 0;
+        const usableReturn = fund.annualizedReturn > 0 ? fund.annualizedReturn : simpleReturn;
+        return (fund.currentValue / Math.max(totalValue, 1)) * usableReturn;
+      })
+    ),
     2
   );
-  const benchmarkReturn = round(
-    sum(funds.map((fund) => (fund.currentValue / Math.max(totalValue, 1)) * fund.benchmarkReturn)),
+  const weightedBenchmarkReturn = round(
+    sum(
+      funds.map((fund) => {
+        const benchmark = fund.benchmarkReturn > 0 ? fund.benchmarkReturn : getBenchmarkMapping(fund.category).fallbackReturn;
+        return (fund.currentValue / Math.max(totalValue, 1)) * benchmark;
+      })
+    ),
     2
+  );
+  const primaryBenchmark = getBenchmarkMapping(funds[0]?.category ?? "equity");
+  const xirrAnalysis = calculateXirrFromTransactions(
+    funds.flatMap((fund) => fund.transactions ?? []),
+    totalValue
   );
 
   const allocationShare = assetAllocation.map((item) => ({
@@ -60,14 +62,22 @@ export function calculatePortfolioXRay(funds: PortfolioFund[]): PortfolioXRayRes
   }));
   const dominantCategory = allocationShare.find((item) => item.share > 70);
   const concentratedFund = funds.find((fund) => fund.currentValue / Math.max(totalValue, 1) > 0.4);
+  const exactOverlapConcern = fundOverlap.find(
+    (item) => item.status === "exact" && (item.overlapPercent ?? 0) > 18
+  );
+  const estimatedOverlapConcern = fundOverlap.find(
+    (item) => item.status === "estimated" && (item.overlapPercent ?? 0) > 18
+  );
 
   const rebalancingSuggestions = [
     weightedExpenseRatio > 1.1
-      ? "Expense ratio drag is meaningful. Shift core exposure toward lower-cost index or flexi-cap holdings."
-      : "Expense ratio drag is reasonable for an active-plus-core portfolio.",
-    fundOverlap.some((item) => item.overlapPercent > 18)
-      ? "You have meaningful overlap between funds. Consolidating similar large-cap holdings can simplify the portfolio."
-      : "Fund overlap is manageable, so diversification is working reasonably well.",
+      ? "Expense ratio drag is meaningful. Shift core exposure toward lower-cost index or diversified core holdings."
+      : "Expense ratio drag is reasonable for the current mix.",
+    exactOverlapConcern
+      ? "You have measurable overlap between some funds. Consolidating similar sleeves can simplify the portfolio."
+      : estimatedOverlapConcern
+        ? "Overlap looks elevated on an estimated basis, but actual holdings data would improve confidence."
+        : "No large overlap signal is visible from the available data.",
     dominantCategory
       ? `Your ${dominantCategory.category} allocation is dominant. Add complementary assets to reduce concentration risk.`
       : "Asset allocation is reasonably distributed across categories."
@@ -77,58 +87,58 @@ export function calculatePortfolioXRay(funds: PortfolioFund[]): PortfolioXRayRes
     dominantCategory ? `${dominantCategory.category} is more than 70% of portfolio value.` : "",
     concentratedFund ? `${concentratedFund.fundName} alone is over 40% of portfolio value.` : "",
     ...fundOverlap
-      .filter((item) => item.overlapPercent > 20)
-      .map((item) => `${item.pair} has overlap above 20%.`)
+      .filter((item) => (item.overlapPercent ?? 0) > 20)
+      .map((item) =>
+        item.status === "exact"
+          ? `${item.pair} has exact overlap above 20%.`
+          : `${item.pair} has estimated overlap above 20%; actual holdings would confirm it.`
+      )
   ].filter(Boolean);
 
   return {
     reconstructedHoldings: funds,
     assetAllocation,
-    fundOverlap: fundOverlap.sort((left, right) => right.overlapPercent - left.overlapPercent),
+    fundOverlap,
     expenseRatioDragEstimate,
     benchmarkComparison: {
-      portfolioReturn,
-      benchmarkReturn,
-      alpha: round(portfolioReturn - benchmarkReturn, 2)
+      portfolioReturn: round(weightedPortfolioReturn, 2),
+      benchmarkReturn: round(weightedBenchmarkReturn, 2),
+      alpha: round(weightedPortfolioReturn - weightedBenchmarkReturn, 2),
+      benchmarkName: primaryBenchmark.benchmarkName,
+      status: "estimated",
+      source: primaryBenchmark.source
     },
-    xirrApproximation: portfolioReturn,
+    xirrApproximation: xirrAnalysis.status === "exact" ? xirrAnalysis.value : null,
+    xirrAnalysis,
     rebalancingSuggestions,
-    concentrationWarnings
+    concentrationWarnings,
+    assumptionsUsed,
+    confidence: {
+      label:
+        xirrAnalysis.status === "exact"
+          ? fundOverlap.some((item) => item.status === "estimated")
+            ? "estimated"
+            : "exact"
+          : "estimated",
+      score:
+        xirrAnalysis.status === "exact"
+          ? fundOverlap.some((item) => item.status === "estimated")
+            ? 80
+            : 88
+          : totalInvested > 0
+            ? 70
+            : 45,
+      explanation:
+        xirrAnalysis.status === "exact"
+          ? "Portfolio return includes transaction-based XIRR, though some overlap and benchmark fields may still be estimated."
+          : "Snapshot analytics are available, but XIRR stays unavailable until dated cash flows are provided.",
+      lastUpdated: new Date().toISOString()
+    }
   };
 }
 
-export function parsePortfolioCsv(csvText: string): PortfolioFund[] {
-  const rows = csvText
-    .split(/\r?\n/)
-    .map((row) => row.trim())
-    .filter(Boolean);
-
-  if (rows.length <= 1) {
-    return [];
-  }
-
-  const headers = rows[0].split(",").map((header) => header.trim().toLowerCase());
-  const columnIndex = (name: string) => headers.findIndex((header) => header === name);
-
-  return rows.slice(1).map((row) => {
-    const cells = row.split(",").map((cell) => cell.trim());
-
-    return {
-      fundName: cells[columnIndex("fundname")] ?? "Imported Fund",
-      category: cells[columnIndex("category")] ?? "Equity",
-      investedAmount: Number(cells[columnIndex("investedamount")] ?? 0),
-      currentValue: Number(cells[columnIndex("currentvalue")] ?? 0),
-      expenseRatio: Number(cells[columnIndex("expenseratio")] ?? 1),
-      benchmarkReturn: Number(cells[columnIndex("benchmarkreturn")] ?? 11),
-      annualizedReturn: Number(cells[columnIndex("annualizedreturn")] ?? 10),
-      styleTags: (cells[columnIndex("styletags")] ?? "core").split("|"),
-      topHoldings: [
-        { name: "HDFC Bank", weight: 6 },
-        { name: "Reliance Industries", weight: 5 },
-        { name: "ICICI Bank", weight: 4 }
-      ]
-    };
-  });
+export function parsePortfolioCsv(csvText: string) {
+  return parsePortfolioCsvText(csvText);
 }
 
 export function mockParseForm16() {
@@ -146,6 +156,8 @@ export function mockParseForm16() {
     npsEmployee: 25000,
     npsEmployer: 30000,
     homeLoanInterest: 0,
-    otherDeductions: 0
+    otherDeductions: 0,
+    dataQuality: "demo" as const,
+    sourceLabel: "Demo sample loaded"
   };
 }

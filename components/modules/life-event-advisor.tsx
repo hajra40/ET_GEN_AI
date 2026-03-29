@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { buildGroundedSummary, buildLifeEventFactsPacket } from "@/lib/ai/grounded-explanations";
+import { fetchAiSummary } from "@/lib/ai/client";
+import { AssumptionsPanel } from "@/components/shared/assumptions-panel";
+import { ConfidenceBadge } from "@/components/shared/confidence-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { buildLifeEventPlan, getLifeEventQuestions } from "@/lib/calculators/life-events";
-import { fetchAiSummary } from "@/lib/ai/client";
 import type { LifeEventType, UserProfile } from "@/lib/types";
 import { demoLifeEventOptions } from "@/lib/data/demo-meta";
 
@@ -15,7 +18,6 @@ export function LifeEventAdvisor({
 }: {
   profile: UserProfile;
 }) {
-  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [eventType, setEventType] = useState<LifeEventType>("annual_bonus");
   const [answers, setAnswers] = useState<Record<string, string | number>>({
     bonusAmount: 500000,
@@ -25,8 +27,15 @@ export function LifeEventAdvisor({
 
   const questions = getLifeEventQuestions(eventType);
   const plan = buildLifeEventPlan(profile, { eventType, answers });
-  const aiPrompt = "Analyze this life event scenario and provide personalized financial advice for handling this situation.";
-  const aiContext = `Life Event: ${eventType}, Answers: ${JSON.stringify(answers)}, Emergency Fund Change: ${plan.emergencyFundChange}, Allocation Update: ${plan.allocationUpdate}, Insurance & Tax: ${plan.insuranceAndTaxNote}`;
+  const factsPacket = buildLifeEventFactsPacket(plan);
+  const [aiSummary, setAiSummary] = useState<string>(buildGroundedSummary(factsPacket));
+  const aiPrompt =
+    "Explain the life-event plan using only the provided structured facts and actions.";
+  const aiContext = JSON.stringify(factsPacket);
+
+  useEffect(() => {
+    setAiSummary(buildGroundedSummary(factsPacket));
+  }, [factsPacket]);
 
   useEffect(() => {
     let active = true;
@@ -51,6 +60,10 @@ export function LifeEventAdvisor({
         badge="Now / 3 months / 12 months"
       />
 
+      <div className="flex flex-wrap gap-3">
+        <ConfidenceBadge confidence={plan.confidence} />
+      </div>
+
       <Card>
         <CardHeader>
           <div>
@@ -67,7 +80,10 @@ export function LifeEventAdvisor({
               setEventType(nextType);
               const freshAnswers: Record<string, string | number> = {};
               getLifeEventQuestions(nextType).forEach((question) => {
-                freshAnswers[question.id] = question.type === "number" ? Number(question.placeholder ?? 0) : question.placeholder ?? "";
+                freshAnswers[question.id] =
+                  question.type === "number"
+                    ? Number(question.placeholder ?? 0)
+                    : question.placeholder ?? "";
               });
               setAnswers(freshAnswers);
             }}
@@ -92,7 +108,10 @@ export function LifeEventAdvisor({
               onChange={(event) =>
                 setAnswers((current) => ({
                   ...current,
-                  [question.id]: question.type === "number" ? Number(event.target.value) : event.target.value
+                  [question.id]:
+                    question.type === "number"
+                      ? Number(event.target.value)
+                      : event.target.value
                 }))
               }
               placeholder="e.g. 500000"
@@ -112,15 +131,21 @@ export function LifeEventAdvisor({
           <CardContent className="space-y-3">
             <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
               <p className="font-semibold">Emergency Fund</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.emergencyFundChange}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {plan.emergencyFundChange}
+              </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
               <p className="font-semibold">Allocation Update</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.allocationUpdate}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {plan.allocationUpdate}
+              </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
-              <p className="font-semibold">Insurance & Tax</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.insuranceAndTaxNote}</p>
+              <p className="font-semibold">Insurance and Tax</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {plan.insuranceAndTaxNote}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -130,7 +155,7 @@ export function LifeEventAdvisor({
             <CardHeader>
               <div>
                 <CardTitle>AI Mentor Summary</CardTitle>
-                <CardDescription>Personalized life event advice powered by AI.</CardDescription>
+                <CardDescription>Grounded in the event plan and then optionally refined by AI.</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
@@ -162,6 +187,16 @@ export function LifeEventAdvisor({
           </div>
         </div>
       </div>
+
+      <AssumptionsPanel
+        title="Life-event trust notes"
+        description="This module is still largely rules-based and scenario-driven; exact cash-flow changes improve precision."
+        assumptions={plan.assumptionsUsed}
+        confidence={plan.confidence}
+        missingInputs={[
+          "Exact event timing, medical coverage details, and household cash buffers improve event planning accuracy."
+        ]}
+      />
     </div>
   );
 }

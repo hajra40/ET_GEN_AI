@@ -12,12 +12,22 @@ const questionBank: Record<LifeEventType, LifeEventQuestion[]> = {
     { id: "highInterestDebt", label: "High-interest debt outstanding", type: "number", placeholder: "0" },
     { id: "goalWithin3Years", label: "Nearest goal within 3 years", type: "text", placeholder: "Home down payment" }
   ],
+  bonus: [
+    { id: "bonusAmount", label: "Bonus amount", type: "number", placeholder: "500000" },
+    { id: "highInterestDebt", label: "High-interest debt outstanding", type: "number", placeholder: "0" },
+    { id: "goalWithin3Years", label: "Nearest goal within 3 years", type: "text", placeholder: "Home down payment" }
+  ],
   marriage: [
     { id: "weddingBudget", label: "Wedding budget", type: "number", placeholder: "2000000" },
     { id: "monthsToWedding", label: "Months to wedding", type: "number", placeholder: "9" },
     { id: "partnerIncome", label: "Partner monthly income", type: "number", placeholder: "90000" }
   ],
   new_baby: [
+    { id: "deliveryCost", label: "Expected delivery cost", type: "number", placeholder: "180000" },
+      { id: "childcareMonthly", label: "Estimated monthly childcare", type: "number", placeholder: "15000" },
+      { id: "oneTimeSetup", label: "One-time setup costs", type: "number", placeholder: "120000" }
+  ],
+  baby: [
     { id: "deliveryCost", label: "Expected delivery cost", type: "number", placeholder: "180000" },
     { id: "childcareMonthly", label: "Estimated monthly childcare", type: "number", placeholder: "15000" },
     { id: "oneTimeSetup", label: "One-time setup costs", type: "number", placeholder: "120000" }
@@ -32,10 +42,20 @@ const questionBank: Record<LifeEventType, LifeEventQuestion[]> = {
     { id: "severance", label: "Severance received", type: "number", placeholder: "250000" },
     { id: "essentialExpenses", label: "Essential monthly expenses", type: "number", placeholder: "45000" }
   ],
+  job_change: [
+    { id: "monthsWithoutIncome", label: "Gap between jobs in months", type: "number", placeholder: "2" },
+    { id: "severance", label: "Exit payout or joining bonus", type: "number", placeholder: "150000" },
+    { id: "essentialExpenses", label: "Essential monthly expenses", type: "number", placeholder: "45000" }
+  ],
   home_purchase: [
     { id: "propertyCost", label: "Property cost", type: "number", placeholder: "9000000" },
     { id: "downPayment", label: "Available down payment", type: "number", placeholder: "1800000" },
     { id: "timelineMonths", label: "Timeline in months", type: "number", placeholder: "12" }
+  ],
+  emergency_medical_event: [
+    { id: "medicalCost", label: "Expected medical cost", type: "number", placeholder: "300000" },
+    { id: "incomePauseMonths", label: "Months of income disruption", type: "number", placeholder: "1" },
+    { id: "insuranceReimbursement", label: "Expected insurance reimbursement", type: "number", placeholder: "150000" }
   ]
 };
 
@@ -80,6 +100,10 @@ export function buildLifeEventPlan(profile: UserProfile, input: LifeEventInput):
           "Track whether the bonus accelerated your goal timeline in practice."
         ]
       };
+    }
+
+    case "bonus": {
+      return buildLifeEventPlan(profile, { ...input, eventType: "annual_bonus" });
     }
 
     case "marriage": {
@@ -131,6 +155,10 @@ export function buildLifeEventPlan(profile: UserProfile, input: LifeEventInput):
       };
     }
 
+    case "baby": {
+      return buildLifeEventPlan(profile, { ...input, eventType: "new_baby" });
+    }
+
     case "inheritance": {
       const inheritanceAmount = getNumber(input.answers.inheritanceAmount);
       const liability = getNumber(input.answers.liabilityToClear);
@@ -180,6 +208,10 @@ export function buildLifeEventPlan(profile: UserProfile, input: LifeEventInput):
       };
     }
 
+    case "job_change": {
+      return buildLifeEventPlan(profile, { ...input, eventType: "job_loss" });
+    }
+
     case "home_purchase": {
       const propertyCost = getNumber(input.answers.propertyCost);
       const downPayment = getNumber(input.answers.downPayment);
@@ -201,6 +233,32 @@ export function buildLifeEventPlan(profile: UserProfile, input: LifeEventInput):
         in12Months: [
           "If the purchase is delayed, keep the corpus liquid and revisit affordability with updated rates.",
           "After buying, rebuild liquidity before increasing equity exposure again."
+        ]
+      };
+    }
+
+    case "emergency_medical_event": {
+      const medicalCost = getNumber(input.answers.medicalCost);
+      const incomePauseMonths = Math.max(getNumber(input.answers.incomePauseMonths), 0);
+      const reimbursement = getNumber(input.answers.insuranceReimbursement);
+      const netOutOfPocket = Math.max(medicalCost - reimbursement, 0);
+
+      return {
+        emergencyFundChange: `Protect at least Rs.${Math.round(monthlySafetyNeed * 9).toLocaleString("en-IN")} of liquidity after meeting the expected out-of-pocket cost of Rs.${Math.round(netOutOfPocket).toLocaleString("en-IN")}.`,
+        allocationUpdate: "Pause optional long-term investing temporarily if medical costs would otherwise force expensive debt or redemptions at the wrong time.",
+        insuranceAndTaxNote: "Track claim timelines, exclusions, and any medical deductions that may apply before the financial year closes.",
+        now: [
+          "Confirm policy coverage, room-rent limits, and cashless network availability immediately.",
+          "Move near-term bills into a clean medical cash-flow tracker.",
+          "Avoid using retirement or education funds before checking all reimbursement options."
+        ],
+        in3Months: [
+          "Rebuild the emergency fund before resuming aggressive investing.",
+          "Review whether health cover and critical illness protection are still adequate."
+        ],
+        in12Months: [
+          "Use the event to reset health-insurance assumptions for the whole household.",
+          "Update nominees, documents, and emergency access instructions."
         ]
       };
     }

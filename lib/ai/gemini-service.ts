@@ -2,6 +2,7 @@ import "server-only";
 
 import type { InsightPromptContext } from "@/lib/types";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/ai/prompts";
+import { featureFlags } from "@/lib/config/feature-flags";
 
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -59,7 +60,7 @@ async function callGemini(prompt: string) {
 export async function generateAISummary(prompt: string, context: string) {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey) {
+  if (!apiKey || !featureFlags.enableGeminiSummaries) {
     return "AI summary unavailable. Add GEMINI_API_KEY to enable Gemini-powered insights.";
   }
 
@@ -86,7 +87,7 @@ ${context}`;
 export async function generateGeminiInsight(question: string, context: InsightPromptContext) {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey) {
+  if (!apiKey || !featureFlags.enableGeminiSummaries) {
     return null;
   }
 

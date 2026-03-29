@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Tooltip } from "recharts";
 import { Plus, Upload } from "lucide-react";
+import { buildGroundedSummary, buildPortfolioFactsPacket } from "@/lib/ai/grounded-explanations";
+import { fetchAiSummary } from "@/lib/ai/client";
+import { AssumptionsPanel } from "@/components/shared/assumptions-panel";
+import { ConfidenceBadge } from "@/components/shared/confidence-badge";
+import { SourceBadge } from "@/components/shared/source-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { calculatePortfolioXRay } from "@/lib/calculators/portfolio";
-import { fetchAiSummary } from "@/lib/ai/client";
-import type { PortfolioFund } from "@/lib/types";
+import type { ConfidenceBadge as ConfidenceBadgeModel, PortfolioFund } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
 export function PortfolioXRay({
@@ -19,7 +23,6 @@ export function PortfolioXRay({
   initialFunds: PortfolioFund[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [funds, setFunds] = useState<PortfolioFund[]>(
     initialFunds.length
       ? initialFunds
@@ -30,21 +33,25 @@ export function PortfolioXRay({
             investedAmount: 100000,
             currentValue: 110000,
             expenseRatio: 1,
-            benchmarkReturn: 11,
-            annualizedReturn: 10,
+            benchmarkReturn: 0,
+            annualizedReturn: 0,
             styleTags: ["core"],
-            topHoldings: [
-              { name: "HDFC Bank", weight: 6 },
-              { name: "Reliance Industries", weight: 5 },
-              { name: "ICICI Bank", weight: 4 }
-            ]
+            topHoldings: []
           }
         ]
   );
   const [message, setMessage] = useState("");
+  const [uploadConfidence, setUploadConfidence] = useState<ConfidenceBadgeModel | undefined>();
   const result = calculatePortfolioXRay(funds);
-  const aiPrompt = "Analyze this mutual fund portfolio and provide personalized advice on rebalancing, reducing costs, and improving returns.";
-  const aiContext = `Number of Funds: ${funds.length}, Total Invested: ${formatCurrency(funds.reduce((sum, fund) => sum + fund.investedAmount, 0))}, Current Value: ${formatCurrency(funds.reduce((sum, fund) => sum + fund.currentValue, 0))}, XIRR: ${result.xirrApproximation}%, Expense Drag: ${formatCurrency(result.expenseRatioDragEstimate)}, Portfolio Return: ${result.benchmarkComparison.portfolioReturn}%, Benchmark: ${result.benchmarkComparison.benchmarkReturn}%`;
+  const factsPacket = buildPortfolioFactsPacket(result);
+  const [aiSummary, setAiSummary] = useState<string>(buildGroundedSummary(factsPacket));
+  const aiPrompt =
+    "Explain the portfolio facts without inventing XIRR, overlap, or benchmark certainty.";
+  const aiContext = JSON.stringify(factsPacket);
+
+  useEffect(() => {
+    setAiSummary(buildGroundedSummary(factsPacket));
+  }, [factsPacket]);
 
   useEffect(() => {
     let active = true;
@@ -70,10 +77,15 @@ export function PortfolioXRay({
       body: formData
     });
 
-    const data = (await response.json()) as { funds?: PortfolioFund[]; message?: string };
+    const data = (await response.json()) as {
+      funds?: PortfolioFund[];
+      message?: string;
+      confidence?: ConfidenceBadgeModel;
+    };
     if (data.funds?.length) {
       setFunds(data.funds);
     }
+    setUploadConfidence(data.confidence);
     setMessage(data.message ?? "Imported portfolio.");
   }
 
@@ -82,15 +94,21 @@ export function PortfolioXRay({
       <PageHeader
         eyebrow="Mutual Fund Portfolio X-Ray"
         title="Look through the fund names into actual exposures"
-        description="Manual entry, CSV upload, and placeholder CAMS/KFintech PDF flow are all supported, with deterministic overlap and cost analysis."
-        badge={`${result.xirrApproximation}% approx. annualized return`}
+        description="Manual entry, CSV upload, and statement parsing are supported, with honest exact-vs-estimated labels for XIRR, overlap, and benchmarks."
+        badge={result.xirrAnalysis?.value != null ? `${result.xirrAnalysis.value}% exact XIRR` : result.xirrAnalysis?.message ?? "XIRR unavailable"}
       />
+
+      <div className="flex flex-wrap gap-3">
+        <ConfidenceBadge confidence={result.confidence} />
+        {uploadConfidence ? <ConfidenceBadge confidence={uploadConfidence} /> : null}
+        <SourceBadge source={result.benchmarkComparison.source} />
+      </div>
 
       <Card>
         <CardHeader>
           <div>
             <CardTitle>Portfolio Input</CardTitle>
-            <CardDescription>Enter funds manually or import a sample CSV/PDF statement.</CardDescription>
+            <CardDescription>Enter funds manually or import a CSV or statement PDF.</CardDescription>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => fileRef.current?.click()}>
@@ -108,14 +126,10 @@ export function PortfolioXRay({
                     investedAmount: 100000,
                     currentValue: 100000,
                     expenseRatio: 1,
-                    benchmarkReturn: 11,
-                    annualizedReturn: 10,
-                    styleTags: ["core"],
-                    topHoldings: [
-                      { name: "HDFC Bank", weight: 6 },
-                      { name: "Reliance Industries", weight: 5 },
-                      { name: "ICICI Bank", weight: 4 }
-                    ]
+                    benchmarkReturn: 0,
+                    annualizedReturn: 0,
+                    styleTags: [],
+                    topHoldings: []
                   }
                 ])
               }
@@ -138,15 +152,92 @@ export function PortfolioXRay({
           />
         </CardHeader>
         <CardContent className="space-y-3">
-          {message ? <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">{message}</p> : null}
+          {message ? (
+            <p className="rounded-xl bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">
+              {message}
+            </p>
+          ) : null}
           {funds.map((fund, index) => (
-            <div key={`${fund.fundName}-${index}`} className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 md:grid-cols-6">
-              <Input label="Fund name" value={fund.fundName} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fundName: event.target.value } : item))} placeholder="e.g. HDFC Mid-Cap Opportunities" />
-              <Input label="Category" value={fund.category} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} placeholder="e.g. Equity" />
-              <Input label="Invested amount" type="number" value={fund.investedAmount} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, investedAmount: Number(event.target.value) } : item))} placeholder="e.g. 100000" />
-              <Input label="Current value" type="number" value={fund.currentValue} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, currentValue: Number(event.target.value) } : item))} placeholder="e.g. 110000" />
-              <Input label="Expense ratio %" type="number" value={fund.expenseRatio} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, expenseRatio: Number(event.target.value) } : item))} placeholder="e.g. 1.5" />
-              <Input label="Annualized return %" type="number" value={fund.annualizedReturn} onChange={(event) => setFunds((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, annualizedReturn: Number(event.target.value) } : item))} placeholder="e.g. 12" />
+            <div
+              key={`${fund.fundName}-${index}`}
+              className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 md:grid-cols-6"
+            >
+              <Input
+                label="Fund name"
+                value={fund.fundName}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, fundName: event.target.value } : item
+                    )
+                  )
+                }
+                placeholder="e.g. HDFC Mid-Cap Opportunities"
+              />
+              <Input
+                label="Category"
+                value={fund.category}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, category: event.target.value } : item
+                    )
+                  )
+                }
+                placeholder="e.g. Equity"
+              />
+              <Input
+                label="Invested amount"
+                type="number"
+                value={fund.investedAmount}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, investedAmount: Number(event.target.value) } : item
+                    )
+                  )
+                }
+                placeholder="e.g. 100000"
+              />
+              <Input
+                label="Current value"
+                type="number"
+                value={fund.currentValue}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, currentValue: Number(event.target.value) } : item
+                    )
+                  )
+                }
+                placeholder="e.g. 110000"
+              />
+              <Input
+                label="Expense ratio %"
+                type="number"
+                value={fund.expenseRatio}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, expenseRatio: Number(event.target.value) } : item
+                    )
+                  )
+                }
+                placeholder="e.g. 1.5"
+              />
+              <Input
+                label="Annualized return %"
+                type="number"
+                value={fund.annualizedReturn}
+                onChange={(event) =>
+                  setFunds((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, annualizedReturn: Number(event.target.value) } : item
+                    )
+                  )
+                }
+                placeholder="Optional if XIRR is unavailable"
+              />
             </div>
           ))}
         </CardContent>
@@ -164,13 +255,47 @@ export function PortfolioXRay({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                <Pie data={result.assetAllocation} dataKey="value" nameKey="category" innerRadius={72} outerRadius={110} fill="hsl(var(--chart-1))" paddingAngle={3} />
+                <Pie
+                  data={result.assetAllocation}
+                  dataKey="value"
+                  nameKey="category"
+                  innerRadius={72}
+                  outerRadius={110}
+                  fill="hsl(var(--chart-1))"
+                  paddingAngle={3}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardDescription>XIRR status</CardDescription>
+              <CardTitle className="text-2xl">
+                {result.xirrAnalysis?.value != null ? `${result.xirrAnalysis.value}%` : "Unavailable"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {result.xirrAnalysis?.message}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardDescription>Benchmark comparison</CardDescription>
+              <CardTitle className="text-2xl">
+                {result.benchmarkComparison.portfolioReturn != null
+                  ? `${result.benchmarkComparison.portfolioReturn}% vs ${result.benchmarkComparison.benchmarkReturn}%`
+                  : "Unavailable"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {result.benchmarkComparison.alpha != null
+                ? `Alpha: ${result.benchmarkComparison.alpha}%. Benchmark: ${result.benchmarkComparison.benchmarkName}.`
+                : "Benchmark comparison is unavailable for this portfolio."}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardDescription>Expense ratio drag</CardDescription>
@@ -180,40 +305,33 @@ export function PortfolioXRay({
               Estimated annual rupee drag from current expense ratios.
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardDescription>Benchmark comparison</CardDescription>
-              <CardTitle className="text-2xl">
-                {result.benchmarkComparison.portfolioReturn}% vs {result.benchmarkComparison.benchmarkReturn}%
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Approximate alpha: {result.benchmarkComparison.alpha}%.
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Warnings & Rebalancing</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[...result.concentrationWarnings, ...result.rebalancingSuggestions].map((item) => (
-                <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
-                  {item}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Warnings, Rebalancing, and Missing Precision</CardTitle>
+            <CardDescription>What is exact, what is estimated, and what still needs better data.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {[...result.concentrationWarnings, ...result.rebalancingSuggestions].map((item) => (
+            <div
+              key={item}
+              className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground"
+            >
+              {item}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <div>
             <CardTitle>AI Mentor Summary</CardTitle>
-            <CardDescription>Personalized portfolio insights powered by AI.</CardDescription>
+            <CardDescription>Grounded in the parsed portfolio facts and then optionally refined by AI.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -225,7 +343,7 @@ export function PortfolioXRay({
         <CardHeader>
           <div>
             <CardTitle>Fund Overlap Analysis</CardTitle>
-            <CardDescription>Look for duplicated large-cap exposure and style clustering.</CardDescription>
+            <CardDescription>Exact where holdings exist, estimated where only category and style are known.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -233,20 +351,42 @@ export function PortfolioXRay({
             <TableHeader>
               <TableRow>
                 <TableHead>Fund Pair</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Overlap</TableHead>
+                <TableHead>Basis</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {result.fundOverlap.map((item) => (
                 <TableRow key={item.pair}>
                   <TableCell>{item.pair}</TableCell>
-                  <TableCell>{item.overlapPercent}%</TableCell>
+                  <TableCell>{item.status ?? "unknown"}</TableCell>
+                  <TableCell>
+                    {item.overlapPercent == null ? "Unavailable" : `${item.overlapPercent}%`}
+                  </TableCell>
+                  <TableCell>{item.basis ?? "Not specified"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <AssumptionsPanel
+        title="Portfolio assumptions"
+        description="Benchmark mapping, trust state, and missing inputs that would improve precision."
+        assumptions={result.assumptionsUsed}
+        confidence={result.confidence}
+        sources={result.benchmarkComparison.source ? [result.benchmarkComparison.source] : []}
+        missingInputs={[
+          result.xirrAnalysis?.status === "unavailable"
+            ? "Add dated transaction cash flows to unlock exact XIRR."
+            : "",
+          result.fundOverlap.some((item) => item.status === "estimated" || item.status === "unavailable")
+            ? "Actual underlying holdings would improve overlap confidence."
+            : ""
+        ].filter(Boolean)}
+      />
     </div>
   );
 }

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { buildCoupleFactsPacket, buildGroundedSummary } from "@/lib/ai/grounded-explanations";
+import { fetchAiSummary } from "@/lib/ai/client";
+import { AssumptionsPanel } from "@/components/shared/assumptions-panel";
+import { ConfidenceBadge } from "@/components/shared/confidence-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { calculateCouplePlan } from "@/lib/calculators/couple";
-import { fetchAiSummary } from "@/lib/ai/client";
 import type { UserProfile } from "@/lib/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
 
@@ -17,10 +20,11 @@ export function CouplePlanner({
   currentProfile: UserProfile;
   profiles: UserProfile[];
 }) {
-  const [aiSummary, setAiSummary] = useState<string>("Loading AI insights...");
   const [partnerAEmail, setPartnerAEmail] = useState(currentProfile.email);
   const [partnerBEmail, setPartnerBEmail] = useState(
-    profiles.find((profile) => profile.email !== currentProfile.email && profile.maritalStatus === "married")?.email ?? profiles[0].email
+    profiles.find(
+      (profile) => profile.email !== currentProfile.email && profile.maritalStatus === "married"
+    )?.email ?? profiles[0].email
   );
   const [sharedMonthlyExpenses, setSharedMonthlyExpenses] = useState(35000);
 
@@ -30,10 +34,20 @@ export function CouplePlanner({
     partnerA,
     partnerB,
     sharedMonthlyExpenses,
-    jointGoals: [...partnerA.financialGoals.slice(0, 1), ...partnerB.financialGoals.slice(0, 1)]
+    jointGoals: [
+      ...partnerA.financialGoals.filter((goal) => goal.type !== "retirement"),
+      ...partnerB.financialGoals.filter((goal) => goal.type !== "retirement")
+    ]
   });
-  const aiPrompt = "Analyze this couple's joint financial plan and provide personalized advice on optimizing their combined finances.";
-  const aiContext = `Partner A: ${partnerA.name} (Income: ${partnerA.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerA.currentSavings)}), Partner B: ${partnerB.name} (Income: ${partnerB.monthlyIncome}, Net Worth: ${formatCompactCurrency(partnerB.currentSavings)}), Combined Income: ${result.combinedIncome}, Combined Expenses: ${result.combinedExpenses}, Joint Emergency Target: ${result.jointEmergencyFundTarget}, Partner A SIP: ${result.optimizedSipSplit.partnerA}, Partner B SIP: ${result.optimizedSipSplit.partnerB}`;
+  const factsPacket = buildCoupleFactsPacket(result);
+  const [aiSummary, setAiSummary] = useState<string>(buildGroundedSummary(factsPacket));
+  const aiPrompt =
+    "Explain the couple-planner facts without inventing shared goals or tax savings beyond the provided data.";
+  const aiContext = JSON.stringify(factsPacket);
+
+  useEffect(() => {
+    setAiSummary(buildGroundedSummary(factsPacket));
+  }, [factsPacket]);
 
   useEffect(() => {
     let active = true;
@@ -54,9 +68,13 @@ export function CouplePlanner({
       <PageHeader
         eyebrow="Couple's Money Planner"
         title="Plan jointly without losing individual clarity"
-        description="Compare solo and shared planning, split SIPs intelligently, and turn two financial lives into one coherent system."
+        description="Compare partner-level tax and protection outcomes, then split shared investing with explicit rationale."
         badge="Dual-profile planning"
       />
+
+      <div className="flex flex-wrap gap-3">
+        <ConfidenceBadge confidence={result.confidence} />
+      </div>
 
       <Card>
         <CardHeader>
@@ -91,11 +109,12 @@ export function CouplePlanner({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           ["Combined income", formatCurrency(result.combinedIncome)],
           ["Combined expenses", formatCurrency(result.combinedExpenses)],
           ["Combined net worth", formatCompactCurrency(result.combinedNetWorth)],
+          ["Combined surplus", formatCurrency(result.combinedSurplus ?? 0)],
           ["Joint emergency target", formatCurrency(result.jointEmergencyFundTarget)]
         ].map(([label, value]) => (
           <Card key={label}>
@@ -112,20 +131,25 @@ export function CouplePlanner({
           <CardHeader>
             <div>
               <CardTitle>Optimized SIP Split</CardTitle>
-              <CardDescription>Income-weighted split of the suggested joint investing amount.</CardDescription>
+              <CardDescription>Shifted toward the partner with the stronger tax-saving upside.</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
               <p className="font-semibold">{partnerA.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{formatCurrency(result.optimizedSipSplit.partnerA)} per month</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(result.optimizedSipSplit.partnerA)} per month
+              </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
               <p className="font-semibold">{partnerB.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{formatCurrency(result.optimizedSipSplit.partnerB)} per month</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(result.optimizedSipSplit.partnerB)} per month
+              </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-white p-4 text-sm text-muted-foreground">
-              Solo emergency targets total {formatCurrency(result.soloVsJointDelta.soloEmergencyFunds)} versus a joint target of {formatCurrency(result.soloVsJointDelta.jointEmergencyFund)}.
+              Solo emergency targets total {formatCurrency(result.soloVsJointDelta.soloEmergencyFunds)}
+              {" "}versus a joint target of {formatCurrency(result.soloVsJointDelta.jointEmergencyFund)}.
             </div>
           </CardContent>
         </Card>
@@ -134,7 +158,7 @@ export function CouplePlanner({
           <CardHeader>
             <div>
               <CardTitle>AI Mentor Summary</CardTitle>
-        <CardDescription>Personalized couple financial planning insights powered by AI.</CardDescription>
+              <CardDescription>Grounded in deterministic couple-planner facts.</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
@@ -146,18 +170,77 @@ export function CouplePlanner({
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>Insurance & Tax Suggestions</CardTitle>
-            <CardDescription>High-level rules for shared planning efficiency.</CardDescription>
+            <CardTitle>Scenario Comparison</CardTitle>
+            <CardDescription>Side-by-side tax-aware planning options for the household.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {[...result.highLevelSuggestions, ...result.insuranceSplitRecommendations].map((item) => (
-            <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
-              {item}
+          {(result.scenarioComparisons ?? []).map((scenario) => (
+            <div key={scenario.name} className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <p className="font-semibold">{scenario.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Combined tax {formatCurrency(scenario.combinedTax)}
+                </p>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {scenario.rationale} Monthly investable amount: {formatCurrency(scenario.monthlyInvestable)}.
+              </p>
             </div>
           ))}
         </CardContent>
       </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Goal Ownership Map</CardTitle>
+              <CardDescription>Clarifies who owns each goal or whether it should stay joint.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(result.goalOwnershipMap ?? []).map((goal) => (
+              <div key={`${goal.goalId}-${goal.owner}`} className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold">{goal.goalTitle}</p>
+                  <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                    {goal.owner}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{goal.reason}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Insurance and Shared Planning Notes</CardTitle>
+              <CardDescription>Protection structure and household workflow suggestions.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[...result.highLevelSuggestions, ...result.insuranceSplitRecommendations].map((item) => (
+              <div key={item} className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm leading-6 text-muted-foreground">
+                {item}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <AssumptionsPanel
+        title="Couple-planner assumptions"
+        description="Shared-expense, tax-optimization, and protection assumptions driving the split."
+        assumptions={result.assumptionsUsed}
+        confidence={result.confidence}
+        missingInputs={[
+          "Exact shared rent and employer benefits for both partners would improve the scenario comparison.",
+          "Explicit joint goal amounts and target dates would improve ownership and SIP recommendations."
+        ]}
+      />
     </div>
   );
 }

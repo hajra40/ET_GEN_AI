@@ -2,6 +2,10 @@ import type {
   InsightPromptContext,
   UserProfile
 } from "@/lib/types";
+import {
+  getInflationDefault,
+  getRiskAdjustedReturn
+} from "@/lib/config/finance-assumptions";
 import { calculateMoneyHealthScore } from "@/lib/calculators/money-health";
 import { calculateFirePlan } from "@/lib/calculators/fire";
 import { compareTaxRegimes } from "@/lib/calculators/tax";
@@ -18,10 +22,18 @@ export async function buildInsightContext(profile: UserProfile): Promise<Insight
     savings: profile.currentSavings,
     investments: totalInvestments(profile.currentInvestments),
     retirementTargetAge: profile.retirementTargetAge,
-    expectedInflation: 6,
-    expectedReturnRate: profile.riskAppetite === "aggressive" ? 12 : profile.riskAppetite === "growth" ? 11 : 9,
+    expectedInflation: getInflationDefault(),
+    expectedReturnRate: getRiskAdjustedReturn(profile.riskAppetite),
     lifeGoals: profile.financialGoals,
-    riskAppetite: profile.riskAppetite
+    riskAppetite: profile.riskAppetite,
+    currentEmergencyFund: profile.emergencyFund,
+    insuranceCoverage: profile.insuranceCoverage,
+    dependents: profile.dependents,
+    maritalStatus: profile.maritalStatus,
+    cityType: profile.cityType ?? (getMetroCityFlag(profile.city) ? "metro" : "non_metro"),
+    employerBenefits: profile.employerBenefits,
+    debtDetails: profile.debtDetails,
+    salaryBreakdown: profile.salaryBreakdown
   });
   const taxResult = compareTaxRegimes({
     annualGrossSalary: profile.salaryBreakdown.annualGrossSalary,
@@ -37,7 +49,9 @@ export async function buildInsightContext(profile: UserProfile): Promise<Insight
     npsEmployee: profile.salaryBreakdown.npsEmployee,
     npsEmployer: profile.salaryBreakdown.npsEmployer,
     homeLoanInterest: profile.salaryBreakdown.homeLoanInterest,
-    otherDeductions: profile.salaryBreakdown.otherDeductions
+    otherDeductions: profile.salaryBreakdown.otherDeductions,
+    dataQuality: "estimated",
+    sourceLabel: "Insight context proxy"
   });
   const portfolioXRay = calculatePortfolioXRay(await getPortfolioByEmail(profile.email));
 

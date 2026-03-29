@@ -3,24 +3,8 @@ import type {
   TaxWizardInput,
   TaxWizardResult
 } from "@/lib/types";
+import { getTaxRules } from "@/lib/config/tax-rules";
 import { clamp, round } from "@/lib/utils";
-
-const OLD_SLABS = [
-  { upto: 250000, rate: 0 },
-  { upto: 500000, rate: 0.05 },
-  { upto: 1000000, rate: 0.2 },
-  { upto: Number.POSITIVE_INFINITY, rate: 0.3 }
-];
-
-const NEW_SLABS_AY_2026_27 = [
-  { upto: 400000, rate: 0 },
-  { upto: 800000, rate: 0.05 },
-  { upto: 1200000, rate: 0.1 },
-  { upto: 1600000, rate: 0.15 },
-  { upto: 2000000, rate: 0.2 },
-  { upto: 2400000, rate: 0.25 },
-  { upto: Number.POSITIVE_INFINITY, rate: 0.3 }
-];
 
 function computeTaxFromSlabs(taxableIncome: number, slabs: { upto: number; rate: number }[]) {
   let previousLimit = 0;
@@ -39,7 +23,12 @@ function computeTaxFromSlabs(taxableIncome: number, slabs: { upto: number; rate:
   return tax;
 }
 
-function applyRebateWithMarginalRelief(taxableIncome: number, tax: number, threshold: number, maxRebate: number) {
+function applyRebateWithMarginalRelief(
+  taxableIncome: number,
+  tax: number,
+  threshold: number,
+  maxRebate: number
+) {
   if (taxableIncome <= threshold) {
     return Math.min(tax, maxRebate);
   }
@@ -53,74 +42,148 @@ function applyRebateWithMarginalRelief(taxableIncome: number, tax: number, thres
 }
 
 function calculateHraExemption(input: TaxWizardInput) {
-  if (input.annualRentPaid <= 0 || input.hraReceived <= 0) {
+  if (input.annualRentPaid <= 0 || input.hraReceived <= 0 || input.basicSalary <= 0) {
     return 0;
   }
 
-  const salaryForHra = input.basicSalary;
   const metroLimit = input.cityType === "metro" ? 0.5 : 0.4;
 
   return Math.max(
     0,
     Math.min(
       input.hraReceived,
-      input.annualRentPaid - 0.1 * salaryForHra,
-      salaryForHra * metroLimit
+      input.annualRentPaid - 0.1 * input.basicSalary,
+      input.basicSalary * metroLimit
     )
   );
 }
 
-function getMarginalRate(taxableIncome: number) {
-  if (taxableIncome > 1000000) {
-    return 0.3;
+function getMarginalRate(taxableIncome: number, slabs: { upto: number; rate: number }[]) {
+  let previousLimit = 0;
+  for (const slab of slabs) {
+    if (taxableIncome <= slab.upto) {
+      return slab.rate;
+    }
+
+    previousLimit = slab.upto;
   }
 
-  if (taxableIncome > 500000) {
-    return 0.2;
+  return slabs[slabs.length - 1]?.rate ?? 0;
+}
+
+function getLiquidityRank(value: TaxSavingSuggestion["liquidity"]) {
+  if (value === "high") {
+    return 3;
   }
 
-  if (taxableIncome > 250000) {
-    return 0.05;
+  if (value === "medium") {
+    return 2;
   }
 
-  return 0;
+  return 1;
+}
+
+function getRiskRank(value: TaxSavingSuggestion["risk"]) {
+  if (value === "low") {
+    return 3;
+  }
+
+  if (value === "medium") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function rankSuggestionScore(item: TaxSavingSuggestion) {
+  return (
+    item.expectedTaxBenefit * 100 +
+    getLiquidityRank(item.liquidity) * 10 +
+    getRiskRank(item.risk)
+  );
 }
 
 export function compareTaxRegimes(input: TaxWizardInput): TaxWizardResult {
+  const rules = getTaxRules(input.taxYear);
   const grossSalary = input.annualGrossSalary + input.bonus;
   const hraExemption = calculateHraExemption(input);
-  const capped80c = clamp(input.section80c, 0, 150000);
-  const capped80d = clamp(input.section80d, 0, 25000);
-  const cappedNpsEmployee = clamp(input.npsEmployee, 0, 50000);
-  const cappedHomeLoanInterest = clamp(input.homeLoanInterest, 0, 200000);
+  const capped80c = clamp(input.section80c, 0, rules.section80cCap);
+  const capped80d = clamp(input.section80d, 0, rules.section80dCap);
+  const cappedNpsEmployee = clamp(input.npsEmployee, 0, rules.npsEmployeeCap);
+  const cappedHomeLoanInterest = clamp(input.homeLoanInterest, 0, rules.homeLoanInterestCap);
+  const cappedOtherDeductions = clamp(input.otherDeductions, 0, rules.otherDeductionCap);
+  const employerNpsAllowed = clamp(input.npsEmployer, 0, input.basicSalary * rules.employerNpsRatioCap);
+
   const oldDeductions =
-    50000 +
+    rules.standardDeductionOld +
     hraExemption +
     input.professionalTax +
     capped80c +
     capped80d +
     cappedNpsEmployee +
     cappedHomeLoanInterest +
-    clamp(input.otherDeductions, 0, 50000);
-
-  const employerNpsAllowed = clamp(input.npsEmployer, 0, input.basicSalary * 0.14);
+    cappedOtherDeductions;
+  const newDeductions = rules.standardDeductionNew + employerNpsAllowed;
   const oldTaxableIncome = Math.max(grossSalary - oldDeductions, 0);
-  const newTaxableIncome = Math.max(grossSalary - 75000 - employerNpsAllowed, 0);
+  const newTaxableIncome = Math.max(grossSalary - newDeductions, 0);
 
-  let oldRegimeTax = computeTaxFromSlabs(oldTaxableIncome, OLD_SLABS);
-  oldRegimeTax -= applyRebateWithMarginalRelief(oldTaxableIncome, oldRegimeTax, 500000, 12500);
+  let oldRegimeTax = computeTaxFromSlabs(oldTaxableIncome, rules.oldSlabs);
+  oldRegimeTax -= applyRebateWithMarginalRelief(
+    oldTaxableIncome,
+    oldRegimeTax,
+    rules.oldRebateThreshold,
+    rules.oldRebateMax
+  );
   oldRegimeTax = Math.max(oldRegimeTax, 0) * 1.04;
 
-  let newRegimeTax = computeTaxFromSlabs(newTaxableIncome, NEW_SLABS_AY_2026_27);
-  newRegimeTax -= applyRebateWithMarginalRelief(newTaxableIncome, newRegimeTax, 1200000, 60000);
+  let newRegimeTax = computeTaxFromSlabs(newTaxableIncome, rules.newSlabs);
+  newRegimeTax -= applyRebateWithMarginalRelief(
+    newTaxableIncome,
+    newRegimeTax,
+    rules.newRebateThreshold,
+    rules.newRebateMax
+  );
   newRegimeTax = Math.max(newRegimeTax, 0) * 1.04;
 
   const bestRegime = oldRegimeTax <= newRegimeTax ? "old" : "new";
   const savingsDifference = round(Math.abs(oldRegimeTax - newRegimeTax));
-  const marginalRate = getMarginalRate(oldTaxableIncome);
-  const remaining80c = Math.max(150000 - capped80c, 0);
-  const remaining80d = Math.max(25000 - capped80d, 0);
-  const remainingNps = Math.max(50000 - cappedNpsEmployee, 0);
+  const marginalRate = getMarginalRate(oldTaxableIncome, rules.oldSlabs);
+  const remaining80c = Math.max(rules.section80cCap - capped80c, 0);
+  const remaining80d = Math.max(rules.section80dCap - capped80d, 0);
+  const remainingNps = Math.max(rules.npsEmployeeCap - cappedNpsEmployee, 0);
+
+  const deductionImpacts = [
+    {
+      name: "HRA exemption",
+      amountClaimed: round(hraExemption),
+      cap: round(input.hraReceived),
+      taxImpactEstimate: round(hraExemption * marginalRate)
+    },
+    {
+      name: "Section 80C",
+      amountClaimed: round(capped80c),
+      cap: rules.section80cCap,
+      taxImpactEstimate: round(capped80c * marginalRate)
+    },
+    {
+      name: "Section 80D",
+      amountClaimed: round(capped80d),
+      cap: rules.section80dCap,
+      taxImpactEstimate: round(capped80d * marginalRate)
+    },
+    {
+      name: "NPS employee deduction",
+      amountClaimed: round(cappedNpsEmployee),
+      cap: rules.npsEmployeeCap,
+      taxImpactEstimate: round(cappedNpsEmployee * marginalRate)
+    },
+    {
+      name: "Home-loan interest",
+      amountClaimed: round(cappedHomeLoanInterest),
+      cap: rules.homeLoanInterestCap,
+      taxImpactEstimate: round(cappedHomeLoanInterest * marginalRate)
+    }
+  ].sort((left, right) => right.taxImpactEstimate - left.taxImpactEstimate);
 
   const rankedSuggestions: TaxSavingSuggestion[] = [
     {
@@ -129,7 +192,7 @@ export function compareTaxRegimes(input: TaxWizardInput): TaxWizardResult {
       liquidity: "low" as const,
       lockIn: "3 to 15 years",
       expectedTaxBenefit: round(remaining80c * marginalRate),
-      notes: "Best for users who are staying in the old regime and have 80C room left."
+      notes: "Most useful when the old regime is still competitive and 80C room remains."
     },
     {
       name: "Use NPS Section 80CCD(1B)",
@@ -137,15 +200,15 @@ export function compareTaxRegimes(input: TaxWizardInput): TaxWizardResult {
       liquidity: "low" as const,
       lockIn: "Till retirement",
       expectedTaxBenefit: round(remainingNps * marginalRate),
-      notes: "Can add up to ₹50,000 deduction above the normal 80C limit in the old regime."
+      notes: "Adds up to Rs.50,000 above the normal 80C bucket in the old regime."
     },
     {
-      name: "Upgrade health cover for Section 80D",
+      name: "Upgrade health cover and use Section 80D",
       risk: "low" as const,
       liquidity: "medium" as const,
       lockIn: "1 year renewable",
       expectedTaxBenefit: round(remaining80d * marginalRate),
-      notes: "Useful when protection is thin and 80D is not fully utilized."
+      notes: "Useful when both protection and tax efficiency need attention."
     },
     {
       name: "Ask employer to structure NPS contribution",
@@ -153,15 +216,38 @@ export function compareTaxRegimes(input: TaxWizardInput): TaxWizardResult {
       liquidity: "low" as const,
       lockIn: "Till retirement",
       expectedTaxBenefit: round(employerNpsAllowed * 0.3),
-      notes: "Employer NPS can remain useful even under the new regime."
+      notes: "Employer NPS can remain useful even in the new regime."
     }
-  ].sort((left, right) => right.expectedTaxBenefit - left.expectedTaxBenefit);
+  ].sort((left, right) => rankSuggestionScore(right) - rankSuggestionScore(left));
 
   const missedDeductions = [
-    remaining80c > 0 ? `Section 80C room left: ₹${remaining80c.toLocaleString("en-IN")}` : "",
-    remaining80d > 0 ? `Section 80D room left: ₹${remaining80d.toLocaleString("en-IN")}` : "",
-    remainingNps > 0 ? `NPS add-on room left: ₹${remainingNps.toLocaleString("en-IN")}` : ""
+    remaining80c > 0 ? `Section 80C room left: Rs.${remaining80c.toLocaleString("en-IN")}` : "",
+    remaining80d > 0 ? `Section 80D room left: Rs.${remaining80d.toLocaleString("en-IN")}` : "",
+    remainingNps > 0 ? `NPS add-on room left: Rs.${remainingNps.toLocaleString("en-IN")}` : "",
+    input.annualRentPaid <= 0 && input.hraReceived > 0
+      ? "HRA is present, but annual rent is zero, so HRA exemption is not being used."
+      : ""
   ].filter(Boolean);
+
+  const winnerReasons =
+    bestRegime === "old"
+      ? [
+          "The old regime wins because deductions and exemptions are meaningful enough to offset higher slab rates.",
+          hraExemption > 0
+            ? `HRA exemption alone reduces old-regime taxable income by about Rs.${round(hraExemption).toLocaleString("en-IN")}.`
+            : "HRA exemption is limited, so deductions are doing more of the work than salary structuring."
+        ]
+      : [
+          "The new regime wins because current deduction usage does not outweigh the lower slab structure.",
+          `The new-regime rebate threshold for ${rules.taxYear} also helps if taxable income stays near the rebate zone.`
+        ];
+
+  const nextBestAction =
+    bestRegime === "old"
+      ? rankedSuggestions[0]?.name ?? "Maximize the highest-impact remaining deduction."
+      : employerNpsAllowed > 0
+        ? "Review employer NPS structuring because it can still help even under the new regime."
+        : "Validate whether your current rent, HRA, and deduction inputs are complete before locking the regime."
 
   return {
     oldRegimeTax: round(oldRegimeTax),
@@ -174,7 +260,32 @@ export function compareTaxRegimes(input: TaxWizardInput): TaxWizardResult {
     rankedSuggestions,
     explanation:
       bestRegime === "old"
-        ? "The old regime currently wins because your deductions and exemptions are meaningful enough to outweigh the lower new-regime slab rates."
-        : "The new regime currently wins because your deduction usage is not high enough to beat the lower slab structure and higher rebate threshold."
+        ? "The old regime currently wins because your available exemptions and deductions are materially reducing taxable income."
+        : "The new regime currently wins because your taxable income stays more efficient under the newer slab and rebate structure.",
+    taxYear: rules.taxYear,
+    winnerReasons,
+    deductionImpacts,
+    nextBestAction,
+    assumptionsUsed: rules.assumptions,
+    confidence: {
+      label: input.dataQuality ?? "exact",
+      score: input.dataQuality === "demo" ? 35 : input.dataQuality === "estimated" ? 68 : 88,
+      explanation:
+        input.dataQuality === "demo"
+          ? "These results are based on demo-safe placeholder inputs."
+          : input.dataQuality === "estimated"
+            ? "These results depend on extracted or proxy inputs that should be confirmed."
+            : "These results are based on the provided salary and deduction inputs for the selected tax year.",
+      lastUpdated: new Date().toISOString()
+    },
+    source: {
+      ...(rules.sources[0] ?? {
+        id: "tax-rules",
+        label: "Tax rules",
+        provider: "Internal",
+        kind: "internal" as const
+      }),
+      note: input.sourceLabel ?? rules.sources[0]?.note
+    }
   };
 }
