@@ -2,6 +2,8 @@
 
 AI Money Mentor is a polished Next.js 14 fintech MVP for Indian users. It ships as a single repo with a production-style app structure, seeded demo accounts, deterministic financial calculators, local auth, and an AI-style insight layer grounded in computed profile data.
 
+This project is an AI personal finance mentor for Indian users, and the important part is that it is **not just a chatbot with finance labels**. Each major page is backed by actual calculation logic, and AI is mainly used to explain those outputs in simple language.
+
 ## What is included
 
 - 5-minute onboarding wizard
@@ -10,8 +12,9 @@ AI Money Mentor is a polished Next.js 14 fintech MVP for Indian users. It ships 
 - Life Event Financial Advisor for bonus, marriage, baby, inheritance, job loss, and home purchase
 - Tax Wizard for salaried users with old vs new regime comparison
 - Couple's Money Planner with combined emergency fund and SIP split
-- Mutual Fund Portfolio X-Ray with manual entry, CSV import, and PDF placeholder flow
+- Mutual Fund Portfolio X-Ray with manual entry, CSV import, PDF parsing attempt, confidence labels, and fallback-safe demo handling
 - AI Insights chat grounded in profile data
+- App Router loading states for slow page transitions
 - Local demo auth and seeded data
 - PostgreSQL/Supabase-compatible schema and seed SQL
 
@@ -23,71 +26,79 @@ AI Money Mentor is a polished Next.js 14 fintech MVP for Indian users. It ships 
 - shadcn-style UI primitives
 - Recharts
 - Zod
-- Local mock auth + in-memory store for hackathon speed
+- Local auth + demo in-memory store, with optional Supabase-backed persistence
 
 ## Folder structure
 
 ```text
 ET_Gen_AI/
-├─ app/
-│  ├─ (auth)/
-│  │  ├─ demo/page.tsx
-│  │  ├─ login/page.tsx
-│  │  ├─ signup/page.tsx
-│  │  └─ layout.tsx
-│  ├─ (app)/
-│  │  ├─ dashboard/page.tsx
-│  │  ├─ onboarding/page.tsx
-│  │  ├─ money-health/page.tsx
-│  │  ├─ fire-planner/page.tsx
-│  │  ├─ life-events/page.tsx
-│  │  ├─ tax-wizard/page.tsx
-│  │  ├─ couple-planner/page.tsx
-│  │  ├─ portfolio-xray/page.tsx
-│  │  ├─ insights/page.tsx
-│  │  ├─ settings/page.tsx
-│  │  └─ layout.tsx
-│  ├─ api/
-│  │  ├─ auth/login/route.ts
-│  │  ├─ auth/signup/route.ts
-│  │  ├─ auth/logout/route.ts
-│  │  ├─ profile/route.ts
-│  │  ├─ insights/route.ts
-│  │  ├─ uploads/route.ts
-│  │  ├─ money-health/route.ts
-│  │  ├─ fire/route.ts
-│  │  ├─ life-events/route.ts
-│  │  ├─ tax/route.ts
-│  │  ├─ couple/route.ts
-│  │  └─ portfolio/route.ts
-│  ├─ globals.css
-│  ├─ layout.tsx
-│  ├─ loading.tsx
-│  └─ page.tsx
-├─ components/
-│  ├─ dashboard/
-│  ├─ forms/
-│  ├─ layout/
-│  ├─ modules/
-│  └─ ui/
-├─ lib/
-│  ├─ ai/
-│  ├─ auth/
-│  ├─ calculators/
-│  ├─ data/
-│  ├─ types/
-│  └─ utils.ts
-├─ public/
-│  └─ sample-portfolio.csv
-├─ scripts/
-│  └─ seed-demo.mjs
-├─ supabase/
-│  ├─ schema.sql
-│  └─ seed.sql
-├─ .env.example
-├─ package.json
-├─ tailwind.config.ts
-└─ tsconfig.json
+|-- app/
+|   |-- (auth)/
+|   |   |-- demo/page.tsx
+|   |   |-- login/page.tsx
+|   |   |-- signup/page.tsx
+|   |   `-- layout.tsx
+|   |-- (app)/
+|   |   |-- dashboard/page.tsx
+|   |   |-- onboarding/page.tsx
+|   |   |-- money-health/page.tsx
+|   |   |-- fire-planner/page.tsx
+|   |   |-- life-events/page.tsx
+|   |   |-- tax-wizard/page.tsx
+|   |   |-- couple-planner/page.tsx
+|   |   |-- portfolio-xray/page.tsx
+|   |   |-- insights/page.tsx
+|   |   |-- settings/page.tsx
+|   |   |-- loading.tsx
+|   |   `-- layout.tsx
+|   |-- api/
+|   |   |-- auth/login/route.ts
+|   |   |-- auth/signup/route.ts
+|   |   |-- auth/logout/route.ts
+|   |   |-- profile/route.ts
+|   |   |-- insights/route.ts
+|   |   |-- ai-summary/route.ts
+|   |   |-- uploads/route.ts
+|   |   |-- money-health/route.ts
+|   |   |-- fire/route.ts
+|   |   |-- life-events/route.ts
+|   |   |-- tax/route.ts
+|   |   |-- couple/route.ts
+|   |   `-- portfolio/route.ts
+|   |-- globals.css
+|   |-- layout.tsx
+|   |-- loading.tsx
+|   `-- page.tsx
+|-- components/
+|   |-- dashboard/
+|   |-- forms/
+|   |-- layout/
+|   |   `-- page-loader.tsx
+|   |-- modules/
+|   |-- shared/
+|   `-- ui/
+|-- lib/
+|   |-- ai/
+|   |-- auth/
+|   |-- calculators/
+|   |-- config/
+|   |-- data/
+|   |-- parsers/
+|   |-- services/
+|   |-- supabase/
+|   |-- types/
+|   `-- utils.ts
+|-- public/
+|   `-- sample-portfolio.csv
+|-- scripts/
+|   `-- seed-demo.mjs
+|-- supabase/
+|   |-- schema.sql
+|   `-- seed.sql
+|-- .env.example
+|-- package.json
+|-- tailwind.config.ts
+`-- tsconfig.json
 ```
 
 ## Demo accounts
